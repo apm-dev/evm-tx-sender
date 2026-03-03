@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/apm-dev/evm-tx-sender/internal/domain"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // ReceiptPoller polls for receipts of SUBMITTED transactions.
@@ -86,6 +89,29 @@ func (rp *ReceiptPoller) poll(ctx context.Context) {
 		}
 
 		if receipt.Status == 1 {
+			// For ERC20 transfers, verify a Transfer event log exists.
+			if tx.TokenContract != "" && !rp.verifyERC20Transfer(receipt, tx) {
+				if err := rp.repo.MarkReverted(ctx, tx.ID, txReceipt); err != nil {
+					rp.log.Error("failed to mark reverted (ERC20 not verified)", "tx_id", tx.ID, "error", err)
+					continue
+				}
+				reason := fmt.Sprintf("ERC20 Transfer event not found in receipt logs (block %d)", receipt.BlockNumber.Uint64())
+				_ = rp.repo.LogStateTransition(ctx, &domain.TxStateLog{
+					TransactionID: tx.ID,
+					FromStatus:    string(domain.TxStatusSubmitted),
+					ToStatus:      string(domain.TxStatusReverted),
+					Actor:         actor,
+					Reason:        reason,
+				})
+				rp.log.Warn("ERC20 transfer not verified",
+					"tx_id", tx.ID,
+					"tx_hash", tx.FinalTxHash,
+					"token_contract", tx.TokenContract,
+					"block", receipt.BlockNumber.Uint64(),
+				)
+				continue
+			}
+
 			if err := rp.repo.MarkConfirmed(ctx, tx.ID, txReceipt); err != nil {
 				rp.log.Error("failed to mark confirmed", "tx_id", tx.ID, "error", err)
 				continue
@@ -125,6 +151,38 @@ func (rp *ReceiptPoller) poll(ctx context.Context) {
 			)
 		}
 	}
+}
+
+// transferEventSig is keccak256("Transfer(address,address,uint256)").
+var transferEventSig = crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
+
+// verifyERC20Transfer checks that the receipt contains a Transfer event log
+// matching the expected token contract, sender, and recipient. This catches
+// non-standard ERC20s (e.g. USDT) that return false instead of reverting.
+func (rp *ReceiptPoller) verifyERC20Transfer(receipt *types.Receipt, tx *domain.Transaction) bool {
+	contract := common.HexToAddress(tx.TokenContract)
+	from := common.BytesToHash(common.HexToAddress(tx.Sender).Bytes())
+	to := common.BytesToHash(common.HexToAddress(tx.TransferRecipient).Bytes())
+
+	for _, log := range receipt.Logs {
+		if !strings.EqualFold(log.Address.Hex(), contract.Hex()) {
+			continue
+		}
+		if len(log.Topics) < 3 {
+			continue
+		}
+		if log.Topics[0] != transferEventSig {
+			continue
+		}
+		if log.Topics[1] != from {
+			continue
+		}
+		if log.Topics[2] != to {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func (rp *ReceiptPoller) markAttemptConfirmed(ctx context.Context, txID, txHash string) {
