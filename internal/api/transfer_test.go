@@ -33,7 +33,7 @@ func setupTransferHandler(t *testing.T) (*mocks.MockRepository, *mocks.MockSigne
 	repo := mocks.NewMockRepository(ctrl)
 	signer := mocks.NewMockSigner(ctrl)
 
-	chains := map[uint64]domain.ChainConfig{
+	chains := map[uint64]*domain.ChainConfig{
 		1: {
 			ChainID:             1,
 			NativeTokenSymbol:   "ETH",

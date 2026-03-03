@@ -19,7 +19,7 @@ const maxGasBumps = 5
 // StuckDetector detects and handles stuck transactions via gas bumping.
 type StuckDetector struct {
 	chainID        uint64
-	chain          domain.ChainConfig
+	chain          *domain.ChainConfig
 	repo           domain.Repository
 	client         domain.EthClient
 	signer         domain.Signer
@@ -30,7 +30,7 @@ type StuckDetector struct {
 }
 
 func NewStuckDetector(
-	chain domain.ChainConfig,
+	chain *domain.ChainConfig,
 	repo domain.Repository,
 	client domain.EthClient,
 	signer domain.Signer,

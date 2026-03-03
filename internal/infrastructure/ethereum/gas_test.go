@@ -18,8 +18,8 @@ func gwei(n int64) *big.Int {
 	return new(big.Int).Mul(big.NewInt(n), big.NewInt(1_000_000_000))
 }
 
-func defaultChain(eip1559 bool) domain.ChainConfig {
-	return domain.ChainConfig{
+func defaultChain(eip1559 bool) *domain.ChainConfig {
+	return &domain.ChainConfig{
 		ChainID:            1,
 		SupportsEIP1559:    eip1559,
 		GasLimitMultiplier: 1.2,

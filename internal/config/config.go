@@ -17,7 +17,7 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
-	Chains   map[uint64]domain.ChainConfig
+	Chains   map[uint64]*domain.ChainConfig
 	Keys     map[common.Address]*ecdsa.PrivateKey
 }
 
@@ -51,7 +51,7 @@ func Load() (*Config, error) {
 			MinConns:        int32(envIntOrDefault("TX_SENDER_DB_MIN_CONNS", 5)),
 			MaxConnLifetime: envDurationOrDefault("TX_SENDER_DB_MAX_CONN_LIFETIME", time.Hour),
 		},
-		Chains: make(map[uint64]domain.ChainConfig),
+		Chains: make(map[uint64]*domain.ChainConfig),
 	}
 
 	if cfg.Database.URL == "" {
@@ -103,15 +103,15 @@ func (c *Config) loadChains() error {
 	return nil
 }
 
-func loadChainConfig(chainID uint64) (domain.ChainConfig, error) {
+func loadChainConfig(chainID uint64) (*domain.ChainConfig, error) {
 	prefix := fmt.Sprintf("TX_SENDER_CHAIN_%d_", chainID)
 
 	rpcURLs := os.Getenv(prefix + "RPC_URLS")
 	if rpcURLs == "" {
-		return domain.ChainConfig{}, fmt.Errorf("RPC_URLS required")
+		return nil, fmt.Errorf("RPC_URLS required")
 	}
 
-	chain := domain.ChainConfig{
+	chain := &domain.ChainConfig{
 		ChainID:             chainID,
 		Name:                envOrDefault(prefix+"NAME", fmt.Sprintf("chain-%d", chainID)),
 		RPCEndpoints:        splitCSV(rpcURLs),
@@ -144,7 +144,7 @@ func loadChainConfig(chainID uint64) (domain.ChainConfig, error) {
 	}
 
 	// Load token whitelist: TX_SENDER_CHAIN_<ID>_TOKEN_<SYMBOL>_ADDRESS
-	if err := loadTokenWhitelist(&chain, prefix); err != nil {
+	if err := loadTokenWhitelist(chain, prefix); err != nil {
 		return chain, err
 	}
 

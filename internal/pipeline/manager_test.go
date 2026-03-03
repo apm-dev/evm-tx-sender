@@ -21,7 +21,7 @@ func newTestManager(ctrl *gomock.Controller) (*Manager, *mocks.MockRepository, *
 	client := mocks.NewMockEthClient(ctrl)
 	signer := mocks.NewMockSigner(ctrl)
 	gas := ethereum.NewGasEngine()
-	chains := map[uint64]domain.ChainConfig{
+	chains := map[uint64]*domain.ChainConfig{
 		1: testChainConfig(),
 	}
 	clients := map[uint64]domain.EthClient{
@@ -168,7 +168,7 @@ func TestManager_InitNonces_MultipleSendersMultipleChains(t *testing.T) {
 	signer := mocks.NewMockSigner(ctrl)
 	gas := ethereum.NewGasEngine()
 
-	chains := map[uint64]domain.ChainConfig{
+	chains := map[uint64]*domain.ChainConfig{
 		1:   testChainConfig(),
 		137: testChainConfig(),
 	}

@@ -18,7 +18,7 @@ type Manager struct {
 	clients   map[uint64]domain.EthClient
 	signer    domain.Signer
 	gas       *ethereum.GasEngine
-	chains    map[uint64]domain.ChainConfig
+	chains    map[uint64]*domain.ChainConfig
 	log       *slog.Logger
 }
 
@@ -27,7 +27,7 @@ func NewManager(
 	clients map[uint64]domain.EthClient,
 	signer domain.Signer,
 	gas *ethereum.GasEngine,
-	chains map[uint64]domain.ChainConfig,
+	chains map[uint64]*domain.ChainConfig,
 	log *slog.Logger,
 ) *Manager {
 	return &Manager{

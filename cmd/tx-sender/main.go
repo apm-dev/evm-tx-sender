@@ -92,7 +92,6 @@ func run(log *slog.Logger) error {
 		} else {
 			chain.SupportsEIP1559 = true
 		}
-		cfg.Chains[chainID] = chain
 	}
 
 	// Initialize signer

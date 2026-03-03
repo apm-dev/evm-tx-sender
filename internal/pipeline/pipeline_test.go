@@ -22,8 +22,8 @@ var (
 	pipelineTo     = "0x1234567890abcdef1234567890abcdef12345678"
 )
 
-func testChainConfig() domain.ChainConfig {
-	return domain.ChainConfig{
+func testChainConfig() *domain.ChainConfig {
+	return &domain.ChainConfig{
 		ChainID:            1,
 		SupportsEIP1559:    true,
 		GasLimitMultiplier: 1.2,

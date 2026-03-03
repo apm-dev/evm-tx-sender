@@ -23,7 +23,7 @@ const (
 type Pipeline struct {
 	sender  common.Address
 	chainID uint64
-	chain   domain.ChainConfig
+	chain   *domain.ChainConfig
 	repo    domain.Repository
 	client  domain.EthClient
 	signer  domain.Signer
@@ -34,7 +34,7 @@ type Pipeline struct {
 
 func NewPipeline(
 	sender common.Address,
-	chain domain.ChainConfig,
+	chain *domain.ChainConfig,
 	repo domain.Repository,
 	client domain.EthClient,
 	signer domain.Signer,

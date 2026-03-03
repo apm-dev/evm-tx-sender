@@ -30,7 +30,7 @@ var priorityMultipliers = map[domain.Priority]struct {
 func (g *GasEngine) Estimate(
 	ctx context.Context,
 	client domain.EthClient,
-	chain domain.ChainConfig,
+	chain *domain.ChainConfig,
 	to common.Address,
 	data []byte,
 	value *big.Int,
@@ -58,7 +58,7 @@ func (g *GasEngine) Estimate(
 func (g *GasEngine) estimateEIP1559(
 	ctx context.Context,
 	client domain.EthClient,
-	chain domain.ChainConfig,
+	chain *domain.ChainConfig,
 	priority domain.Priority,
 	gasLimit uint64,
 ) (domain.GasParams, error) {
@@ -107,7 +107,7 @@ func (g *GasEngine) estimateEIP1559(
 func (g *GasEngine) estimateLegacy(
 	ctx context.Context,
 	client domain.EthClient,
-	chain domain.ChainConfig,
+	chain *domain.ChainConfig,
 	gasLimit uint64,
 ) (domain.GasParams, error) {
 	gasPrice, err := client.SuggestGasPrice(ctx)

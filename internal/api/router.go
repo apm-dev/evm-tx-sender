@@ -13,7 +13,7 @@ import (
 func NewRouter(
 	repo domain.Repository,
 	signer domain.Signer,
-	chains map[uint64]domain.ChainConfig,
+	chains map[uint64]*domain.ChainConfig,
 	clients map[uint64]domain.EthClient,
 	manager *pipeline.Manager,
 	pool *pgxpool.Pool,

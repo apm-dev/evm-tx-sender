@@ -36,14 +36,14 @@ func init() {
 type TransferHandler struct {
 	repo    domain.Repository
 	signer  domain.Signer
-	chains  map[uint64]domain.ChainConfig
+	chains  map[uint64]*domain.ChainConfig
 	manager *pipeline.Manager
 }
 
 func NewTransferHandler(
 	repo domain.Repository,
 	signer domain.Signer,
-	chains map[uint64]domain.ChainConfig,
+	chains map[uint64]*domain.ChainConfig,
 	manager *pipeline.Manager,
 ) *TransferHandler {
 	return &TransferHandler{
@@ -85,7 +85,7 @@ func (h *TransferHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if appErr := h.validate(req); appErr != nil {
+	if appErr := h.validate(&req); appErr != nil {
 		writeError(w, appErr)
 		return
 	}
@@ -98,7 +98,7 @@ func (h *TransferHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if existing != nil {
 		// Check for parameter mismatch
-		if !h.idempotencyMatch(existing, req) {
+		if !h.idempotencyMatch(existing, &req) {
 			writeError(w, domain.NewAppError(domain.ErrCodeIdempotencyConflict, 409, "idempotency key already used with different parameters"))
 			return
 		}
@@ -108,7 +108,7 @@ func (h *TransferHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve transfer to transaction parameters
 	chain := h.chains[req.ChainID]
-	txParams, tokenContract, transferType, decimals, appErr := h.resolveTransfer(req, chain)
+	txParams, tokenContract, transferType, decimals, appErr := h.resolveTransfer(&req, chain)
 	if appErr != nil {
 		writeError(w, appErr)
 		return
@@ -185,7 +185,7 @@ type txParams struct {
 	Data  []byte
 }
 
-func (h *TransferHandler) resolveTransfer(req TransferRequest, chain domain.ChainConfig) (*txParams, string, string, uint8, *domain.AppError) {
+func (h *TransferHandler) resolveTransfer(req *TransferRequest, chain *domain.ChainConfig) (*txParams, string, string, uint8, *domain.AppError) {
 	token := strings.ToUpper(req.Token)
 	recipientAddr := common.HexToAddress(req.Recipient)
 
@@ -255,7 +255,7 @@ func (h *TransferHandler) resolveTransfer(req TransferRequest, chain domain.Chai
 	}, contractAddr, "erc20", tokenCfg.Decimals, nil
 }
 
-func (h *TransferHandler) validate(req TransferRequest) *domain.AppError {
+func (h *TransferHandler) validate(req *TransferRequest) *domain.AppError {
 	if req.IdempotencyKey == "" {
 		return domain.NewAppError(domain.ErrCodeMissingField, 400, "idempotency_key is required")
 	}
@@ -302,7 +302,7 @@ func (h *TransferHandler) validate(req TransferRequest) *domain.AppError {
 	return nil
 }
 
-func (h *TransferHandler) idempotencyMatch(existing *domain.Transaction, req TransferRequest) bool {
+func (h *TransferHandler) idempotencyMatch(existing *domain.Transaction, req *TransferRequest) bool {
 	return existing.ChainID == req.ChainID &&
 		strings.EqualFold(existing.Sender, common.HexToAddress(req.Sender).Hex()) &&
 		strings.EqualFold(existing.TransferRecipient, common.HexToAddress(req.Recipient).Hex()) &&
