@@ -25,12 +25,19 @@ func NewRepo(pool *pgxpool.Pool) *Repo {
 }
 
 func (r *Repo) Migrate(ctx context.Context) error {
-	sql, err := migrationsFS.ReadFile("migrations/001_init.sql")
-	if err != nil {
-		return fmt.Errorf("reading migration: %w", err)
+	for _, f := range []string{
+		"migrations/001_init.sql",
+		"migrations/002_add_included_status.sql",
+	} {
+		sql, err := migrationsFS.ReadFile(f)
+		if err != nil {
+			return fmt.Errorf("reading migration %s: %w", f, err)
+		}
+		if _, err := r.pool.Exec(ctx, string(sql)); err != nil {
+			return fmt.Errorf("executing migration %s: %w", f, err)
+		}
 	}
-	_, err = r.pool.Exec(ctx, string(sql))
-	return err
+	return nil
 }
 
 func (r *Repo) CreateTransaction(ctx context.Context, tx *domain.Transaction) error {
@@ -168,6 +175,31 @@ func (r *Repo) MarkConfirmed(ctx context.Context, id string, receipt *domain.TxR
 		receipt.GasUsed, receipt.EffectiveGasPrice.String(), receipt.Status, receipt.ReceiptJSON,
 		now, id,
 	)
+	return err
+}
+
+func (r *Repo) MarkIncluded(ctx context.Context, id string, receipt *domain.TxReceipt) error {
+	now := time.Now().UTC()
+	_, err := r.pool.Exec(ctx, `
+		UPDATE transactions
+		SET status = 'INCLUDED', final_tx_hash = $1, block_number = $2, block_hash = $3,
+			gas_used = $4, effective_gas_price = $5, receipt_status = $6, receipt_data = $7,
+			updated_at = $8
+		WHERE id = $9`,
+		receipt.TxHash, receipt.BlockNumber, receipt.BlockHash,
+		receipt.GasUsed, receipt.EffectiveGasPrice.String(), receipt.Status, receipt.ReceiptJSON,
+		now, id,
+	)
+	return err
+}
+
+func (r *Repo) RevertToSubmitted(ctx context.Context, id string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE transactions
+		SET status = 'SUBMITTED', block_number = NULL, block_hash = NULL,
+			gas_used = NULL, effective_gas_price = NULL, receipt_status = NULL,
+			receipt_data = NULL, updated_at = NOW()
+		WHERE id = $1`, id)
 	return err
 }
 
@@ -340,6 +372,25 @@ func (r *Repo) LogStateTransition(ctx context.Context, log *domain.TxStateLog) e
 func (r *Repo) GetSubmittedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT `+txColumns+` FROM transactions WHERE status = 'SUBMITTED' AND chain_id = $1 ORDER BY submitted_at ASC`, chainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var txs []*domain.Transaction
+	for rows.Next() {
+		tx, err := scanTransactionRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, rows.Err()
+}
+
+func (r *Repo) GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+txColumns+` FROM transactions WHERE status = 'INCLUDED' AND chain_id = $1 ORDER BY updated_at ASC`, chainID)
 	if err != nil {
 		return nil, err
 	}

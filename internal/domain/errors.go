@@ -33,6 +33,7 @@ const (
 	ErrCodeMissingField             ErrorCode = "MISSING_FIELD"
 	ErrCodeIdempotencyKeyTooLong    ErrorCode = "IDEMPOTENCY_KEY_TOO_LONG"
 	ErrCodeERC20TransferNotVerified ErrorCode = "ERC20_TRANSFER_NOT_VERIFIED"
+	ErrCodeReorgDetected            ErrorCode = "REORG_DETECTED"
 )
 
 type AppError struct {

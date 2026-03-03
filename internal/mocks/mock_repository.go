@@ -130,6 +130,21 @@ func (mr *MockRepositoryMockRecorder) GetBroadcastAttemptsByChain(ctx, chainID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBroadcastAttemptsByChain", reflect.TypeOf((*MockRepository)(nil).GetBroadcastAttemptsByChain), ctx, chainID)
 }
 
+// GetIncludedTransactions mocks base method.
+func (m *MockRepository) GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIncludedTransactions", ctx, chainID)
+	ret0, _ := ret[0].([]*domain.Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIncludedTransactions indicates an expected call of GetIncludedTransactions.
+func (mr *MockRepositoryMockRecorder) GetIncludedTransactions(ctx, chainID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIncludedTransactions", reflect.TypeOf((*MockRepository)(nil).GetIncludedTransactions), ctx, chainID)
+}
+
 // GetNonceCursor mocks base method.
 func (m *MockRepository) GetNonceCursor(ctx context.Context, sender string, chainID uint64) (*domain.NonceCursor, error) {
 	m.ctrl.T.Helper()
@@ -305,6 +320,20 @@ func (mr *MockRepositoryMockRecorder) MarkFailed(ctx, id, errCode, errReason any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkFailed", reflect.TypeOf((*MockRepository)(nil).MarkFailed), ctx, id, errCode, errReason)
 }
 
+// MarkIncluded mocks base method.
+func (m *MockRepository) MarkIncluded(ctx context.Context, id string, receipt *domain.TxReceipt) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkIncluded", ctx, id, receipt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkIncluded indicates an expected call of MarkIncluded.
+func (mr *MockRepositoryMockRecorder) MarkIncluded(ctx, id, receipt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkIncluded", reflect.TypeOf((*MockRepository)(nil).MarkIncluded), ctx, id, receipt)
+}
+
 // MarkPending mocks base method.
 func (m *MockRepository) MarkPending(ctx context.Context, id string, nonce uint64) error {
 	m.ctrl.T.Helper()
@@ -374,6 +403,20 @@ func (m *MockRepository) ResetPendingToQueued(ctx context.Context) (int, error) 
 func (mr *MockRepositoryMockRecorder) ResetPendingToQueued(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetPendingToQueued", reflect.TypeOf((*MockRepository)(nil).ResetPendingToQueued), ctx)
+}
+
+// RevertToSubmitted mocks base method.
+func (m *MockRepository) RevertToSubmitted(ctx context.Context, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevertToSubmitted", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevertToSubmitted indicates an expected call of RevertToSubmitted.
+func (mr *MockRepositoryMockRecorder) RevertToSubmitted(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevertToSubmitted", reflect.TypeOf((*MockRepository)(nil).RevertToSubmitted), ctx, id)
 }
 
 // SetNonceCursor mocks base method.

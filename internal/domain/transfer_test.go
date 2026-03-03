@@ -155,6 +155,7 @@ func TestTxStatus_IsTerminal(t *testing.T) {
 		{TxStatusQueued, false},
 		{TxStatusPending, false},
 		{TxStatusSubmitted, false},
+		{TxStatusIncluded, false},
 		{TxStatusConfirmed, true},
 		{TxStatusReverted, true},
 		{TxStatusFailed, true},

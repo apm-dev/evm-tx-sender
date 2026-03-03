@@ -27,6 +27,8 @@ type Repository interface {
 	MarkPending(ctx context.Context, id string, nonce uint64) error
 	MarkSubmitted(ctx context.Context, id string, txHash string, submittedAt *big.Int) error
 	MarkConfirmed(ctx context.Context, id string, receipt *TxReceipt) error
+	MarkIncluded(ctx context.Context, id string, receipt *TxReceipt) error
+	RevertToSubmitted(ctx context.Context, id string) error
 	MarkReverted(ctx context.Context, id string, receipt *TxReceipt) error
 	MarkFailed(ctx context.Context, id string, errCode ErrorCode, errReason string) error
 	ResetPendingToQueued(ctx context.Context) (int, error)
@@ -48,6 +50,7 @@ type Repository interface {
 
 	// Submitted tx queries for background workers
 	GetSubmittedTransactions(ctx context.Context, chainID uint64) ([]*Transaction, error)
+	GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*Transaction, error)
 	GetStuckTransactions(ctx context.Context, chainID uint64, olderThan big.Int) ([]*Transaction, error)
 	CountQueuedTransactions(ctx context.Context, sender string, chainID uint64) (int, error)
 }

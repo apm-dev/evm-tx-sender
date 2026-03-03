@@ -137,7 +137,7 @@ func (m *Manager) Start(ctx context.Context) {
 			pollInterval = 2 * time.Second
 		}
 
-		rp := NewReceiptPoller(chainID, m.repo, client, pollInterval, m.log)
+		rp := NewReceiptPoller(chainID, chain.ConfirmationBlocks, m.repo, client, pollInterval, m.log)
 		go rp.Run(ctx)
 
 		sd := NewStuckDetector(chain, m.repo, client, m.signer, m.gas, chain.GasBumpInterval, m.log)

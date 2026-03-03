@@ -11,6 +11,7 @@ const (
 	TxStatusQueued    TxStatus = "QUEUED"
 	TxStatusPending   TxStatus = "PENDING"
 	TxStatusSubmitted TxStatus = "SUBMITTED"
+	TxStatusIncluded  TxStatus = "INCLUDED"
 	TxStatusConfirmed TxStatus = "CONFIRMED"
 	TxStatusReverted  TxStatus = "REVERTED"
 	TxStatusFailed    TxStatus = "FAILED"
