@@ -43,6 +43,21 @@ func (m *MockEthClient) EXPECT() *MockEthClientMockRecorder {
 	return m.recorder
 }
 
+// BatchTransactionReceipts mocks base method.
+func (m *MockEthClient) BatchTransactionReceipts(ctx context.Context, txHashes []common.Hash) (map[common.Hash]*types.Receipt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchTransactionReceipts", ctx, txHashes)
+	ret0, _ := ret[0].(map[common.Hash]*types.Receipt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BatchTransactionReceipts indicates an expected call of BatchTransactionReceipts.
+func (mr *MockEthClientMockRecorder) BatchTransactionReceipts(ctx, txHashes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchTransactionReceipts", reflect.TypeOf((*MockEthClient)(nil).BatchTransactionReceipts), ctx, txHashes)
+}
+
 // BlockNumber mocks base method.
 func (m *MockEthClient) BlockNumber(ctx context.Context) (uint64, error) {
 	m.ctrl.T.Helper()

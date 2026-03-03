@@ -73,20 +73,34 @@ func (rp *ReceiptPoller) pollSubmitted(ctx context.Context) {
 		return
 	}
 
+	// Collect hashes for batch fetch
+	var hashes []common.Hash
+	hashToTx := make(map[common.Hash]*domain.Transaction, len(txs))
 	for _, tx := range txs {
 		if tx.FinalTxHash == "" {
 			continue
 		}
+		h := common.HexToHash(tx.FinalTxHash)
+		hashes = append(hashes, h)
+		hashToTx[h] = tx
+	}
 
-		hash := common.HexToHash(tx.FinalTxHash)
-		receipt, err := rp.client.TransactionReceipt(ctx, hash)
-		if err != nil {
-			// No receipt yet -- transaction still pending
-			continue
-		}
+	if len(hashes) == 0 {
+		return
+	}
+
+	receipts, err := rp.client.BatchTransactionReceipts(ctx, hashes)
+	if err != nil {
+		rp.log.Error("failed to batch fetch receipts", "error", err)
+		return
+	}
+
+	actor := fmt.Sprintf("receipt-poller:%d", rp.chainID)
+
+	for hash, receipt := range receipts {
+		tx := hashToTx[hash]
 
 		receiptJSON, _ := json.Marshal(receipt)
-		actor := fmt.Sprintf("receipt-poller:%d", rp.chainID)
 
 		txReceipt := &domain.TxReceipt{
 			TxHash:            tx.FinalTxHash,
@@ -204,22 +218,42 @@ func (rp *ReceiptPoller) pollIncluded(ctx context.Context) {
 		return
 	}
 
-	actor := fmt.Sprintf("receipt-poller:%d", rp.chainID)
+	// Filter txs with enough depth and collect hashes
+	var readyTxs []*domain.Transaction
+	var hashes []common.Hash
+	hashToTx := make(map[common.Hash]*domain.Transaction)
 
 	for _, tx := range txs {
 		if tx.BlockNumber == nil {
 			continue
 		}
-
 		depth := currentBlock - *tx.BlockNumber
 		if depth < uint64(rp.confirmationBlocks) {
 			continue
 		}
+		h := common.HexToHash(tx.FinalTxHash)
+		hashes = append(hashes, h)
+		hashToTx[h] = tx
+		readyTxs = append(readyTxs, tx)
+	}
 
-		// Re-fetch receipt to verify still in canonical chain
+	if len(hashes) == 0 {
+		return
+	}
+
+	receipts, err := rp.client.BatchTransactionReceipts(ctx, hashes)
+	if err != nil {
+		rp.log.Error("failed to batch fetch receipts for included txs", "error", err)
+		return
+	}
+
+	actor := fmt.Sprintf("receipt-poller:%d", rp.chainID)
+
+	for _, tx := range readyTxs {
 		hash := common.HexToHash(tx.FinalTxHash)
-		receipt, err := rp.client.TransactionReceipt(ctx, hash)
-		if err != nil {
+		receipt, found := receipts[hash]
+
+		if !found {
 			// Reorg detected: receipt no longer available
 			rp.log.Warn("reorg detected, receipt gone",
 				"tx_id", tx.ID,
@@ -248,6 +282,7 @@ func (rp *ReceiptPoller) pollIncluded(ctx context.Context) {
 
 		if receiptBlockHash == tx.BlockHash {
 			// Same block hash -- confirmed at expected depth
+			depth := currentBlock - *tx.BlockNumber
 			receiptJSON, _ := json.Marshal(receipt)
 			txReceipt := &domain.TxReceipt{
 				TxHash:            tx.FinalTxHash,

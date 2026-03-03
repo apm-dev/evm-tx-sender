@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type endpoint struct {
@@ -251,6 +252,48 @@ func (c *Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (*t
 		return nil, err
 	}
 	return receipt, nil
+}
+
+func (c *Client) BatchTransactionReceipts(ctx context.Context, txHashes []common.Hash) (map[common.Hash]*types.Receipt, error) {
+	if len(txHashes) == 0 {
+		return make(map[common.Hash]*types.Receipt), nil
+	}
+
+	ec, err := c.getClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Access underlying rpc.Client via ethclient's Client() method
+	rpcClient := ec.Client()
+
+	elems := make([]rpc.BatchElem, len(txHashes))
+	results := make([]*types.Receipt, len(txHashes))
+	for i, hash := range txHashes {
+		results[i] = new(types.Receipt)
+		elems[i] = rpc.BatchElem{
+			Method: "eth_getTransactionReceipt",
+			Args:   []interface{}{hash},
+			Result: results[i],
+		}
+	}
+
+	if err := rpcClient.BatchCallContext(ctx, elems); err != nil {
+		c.markUnhealthy(ec, err)
+		return nil, err
+	}
+
+	receipts := make(map[common.Hash]*types.Receipt, len(txHashes))
+	for i, elem := range elems {
+		if elem.Error != nil {
+			continue // individual receipt error, skip
+		}
+		// Check receipt is non-empty (null response means no receipt yet)
+		if results[i] != nil && results[i].BlockNumber != nil {
+			receipts[txHashes[i]] = results[i]
+		}
+	}
+	return receipts, nil
 }
 
 func (c *Client) CodeAt(ctx context.Context, addr common.Address) ([]byte, error) {

@@ -84,6 +84,7 @@ type EthClient interface {
 	LatestBaseFee(ctx context.Context) (*big.Int, error)
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	BatchTransactionReceipts(ctx context.Context, txHashes []common.Hash) (map[common.Hash]*types.Receipt, error)
 	CodeAt(ctx context.Context, addr common.Address) ([]byte, error)
 	Healthy() bool
 }

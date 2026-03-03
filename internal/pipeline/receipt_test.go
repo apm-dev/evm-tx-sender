@@ -71,7 +71,10 @@ func TestReceiptPoller_Poll_ReceiptConfirmed(t *testing.T) {
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xabc123"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xabc123")).Return(receipt, nil)
+	hash := common.HexToHash("0xabc123")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-001", gomock.Any()).DoAndReturn(
 		func(_ context.Context, id string, r *domain.TxReceipt) error {
@@ -109,7 +112,10 @@ func TestReceiptPoller_Poll_ReceiptReverted(t *testing.T) {
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xdef456"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xdef456")).Return(receipt, nil)
+	hash := common.HexToHash("0xdef456")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkReverted(gomock.Any(), "tx-002", gomock.Any()).DoAndReturn(
 		func(_ context.Context, id string, r *domain.TxReceipt) error {
@@ -131,8 +137,10 @@ func TestReceiptPoller_Poll_NoReceiptYet(t *testing.T) {
 
 	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
 
-	// Receipt not available
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xfoo789")).Return(nil, fmt.Errorf("not found"))
+	// Batch returns empty map -- no receipt yet
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{}, nil,
+	)
 
 	// No state changes should happen -- no MarkConfirmed, MarkReverted, etc.
 	rp.poll(ctx)
@@ -159,7 +167,7 @@ func TestReceiptPoller_Poll_EmptyTxHash(t *testing.T) {
 
 	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
 
-	// No receipt fetch should happen
+	// No batch call -- all hashes filtered, returns early
 	rp.poll(ctx)
 }
 
@@ -168,27 +176,30 @@ func TestReceiptPoller_Poll_MultipleTransactions(t *testing.T) {
 	rp, repo, client := newTestReceiptPoller(ctrl, 0)
 	ctx := context.Background()
 
-	tx1 := submittedTx("tx-005", "0xhash1")
-	tx2 := submittedTx("tx-006", "0xhash2")
+	txHash1 := "0xaaaa000000000000000000000000000000000000000000000000000000000001"
+	txHash2 := "0xaaaa000000000000000000000000000000000000000000000000000000000002"
+	tx1 := submittedTx("tx-005", txHash1)
+	tx2 := submittedTx("tx-006", txHash2)
 
 	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx1, tx2}, nil)
 
-	// tx1: confirmed
+	// tx1: confirmed, tx2: no receipt yet (absent from map)
+	hash1 := common.HexToHash(txHash1)
 	receipt1 := &types.Receipt{
 		Status:            1,
 		BlockNumber:       big.NewInt(500),
-		BlockHash:         common.HexToHash("0xbh1"),
+		BlockHash:         common.HexToHash("0xbbbb000000000000000000000000000000000000000000000000000000000001"),
 		GasUsed:           21000,
 		EffectiveGasPrice: big.NewInt(20_000_000_000),
-		TxHash:            common.HexToHash("0xhash1"),
+		TxHash:            hash1,
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash1")).Return(receipt1, nil)
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash1: receipt1}, nil,
+	)
+
 	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-005", gomock.Any()).Return(nil)
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-005").Return(nil, nil)
-
-	// tx2: no receipt yet
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash2")).Return(nil, fmt.Errorf("not found"))
 
 	rp.poll(ctx)
 }
@@ -210,7 +221,11 @@ func TestReceiptPoller_MarkAttemptConfirmed_ReplacesOthers(t *testing.T) {
 		EffectiveGasPrice: big.NewInt(40_000_000_000),
 		TxHash:            common.HexToHash("0xhash_bump2"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash_bump2")).Return(receipt, nil)
+	hash := common.HexToHash("0xhash_bump2")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
+
 	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-007", gomock.Any()).Return(nil)
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -262,7 +277,10 @@ func TestReceiptPoller_Poll_ERC20ConfirmedWithValidTransferLog(t *testing.T) {
 			},
 		},
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xerc20hash1")).Return(receipt, nil)
+	hash := common.HexToHash("0xerc20hash1")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-erc20-ok", gomock.Any()).DoAndReturn(
 		func(_ context.Context, id string, r *domain.TxReceipt) error {
@@ -299,7 +317,10 @@ func TestReceiptPoller_Poll_ERC20ConfirmedNoTransferLog(t *testing.T) {
 		TxHash:            common.HexToHash("0xerc20hash2"),
 		Logs:              []*types.Log{}, // no logs
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xerc20hash2")).Return(receipt, nil)
+	hash := common.HexToHash("0xerc20hash2")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkReverted(gomock.Any(), "tx-erc20-nolog", gomock.Any()).DoAndReturn(
 		func(_ context.Context, id string, r *domain.TxReceipt) error {
@@ -353,7 +374,10 @@ func TestReceiptPoller_Poll_ERC20TransferLogWrongContract(t *testing.T) {
 			},
 		},
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xerc20hash3")).Return(receipt, nil)
+	hash := common.HexToHash("0xerc20hash3")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkReverted(gomock.Any(), "tx-erc20-badcontract", gomock.Any()).Return(nil)
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil)
@@ -396,7 +420,10 @@ func TestReceiptPoller_Poll_ERC20TransferLogWrongRecipient(t *testing.T) {
 			},
 		},
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xerc20hash4")).Return(receipt, nil)
+	hash := common.HexToHash("0xerc20hash4")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkReverted(gomock.Any(), "tx-erc20-badrecipient", gomock.Any()).Return(nil)
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil)
@@ -423,7 +450,10 @@ func TestReceiptPoller_Poll_NativeTransferSkipsERC20Verification(t *testing.T) {
 		TxHash:            common.HexToHash("0xnativehash"),
 		Logs:              []*types.Log{}, // no logs -- fine for native
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xnativehash")).Return(receipt, nil)
+	hash := common.HexToHash("0xnativehash")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-native", gomock.Any()).Return(nil)
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil)
@@ -454,7 +484,10 @@ func TestReceiptPoller_Poll_ERC20RevertedReceiptSkipsLogCheck(t *testing.T) {
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xerc20hash5"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xerc20hash5")).Return(receipt, nil)
+	hash := common.HexToHash("0xerc20hash5")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkReverted(gomock.Any(), "tx-erc20-revert", gomock.Any()).DoAndReturn(
 		func(_ context.Context, id string, r *domain.TxReceipt) error {
@@ -515,7 +548,10 @@ func TestReceiptPoller_PollSubmitted_WithConfirmations_MarksIncluded(t *testing.
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xhash_incl1"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash_incl1")).Return(receipt, nil)
+	hash := common.HexToHash("0xhash_incl1")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	// Should call MarkIncluded, NOT MarkConfirmed
 	repo.EXPECT().MarkIncluded(gomock.Any(), "tx-incl-001", gomock.Any()).DoAndReturn(
@@ -557,7 +593,7 @@ func TestReceiptPoller_PollIncluded_EnoughConfirmations_Confirmed(t *testing.T) 
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1012), nil)
 	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
 
-	// Re-fetch receipt -- same block hash confirms canonical
+	// Batch fetch receipt -- same block hash confirms canonical
 	receipt := &types.Receipt{
 		Status:            1,
 		BlockNumber:       big.NewInt(1000),
@@ -566,7 +602,10 @@ func TestReceiptPoller_PollIncluded_EnoughConfirmations_Confirmed(t *testing.T) 
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xhash_conf1"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash_conf1")).Return(receipt, nil)
+	hash := common.HexToHash("0xhash_conf1")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-conf-001", gomock.Any()).DoAndReturn(
 		func(_ context.Context, id string, r *domain.TxReceipt) error {
@@ -607,7 +646,7 @@ func TestReceiptPoller_PollIncluded_NotEnoughConfirmations_Skipped(t *testing.T)
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1005), nil)
 	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
 
-	// No TransactionReceipt call, no state changes -- depth < 12
+	// No BatchTransactionReceipts call, no state changes -- depth < 12
 	rp.poll(ctx)
 }
 
@@ -631,8 +670,10 @@ func TestReceiptPoller_PollIncluded_ReorgDetected_RevertsToSubmitted(t *testing.
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1012), nil)
 	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
 
-	// Re-fetch receipt returns error -- receipt is gone (reorg)
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash_reorg1")).Return(nil, fmt.Errorf("not found"))
+	// Batch returns empty map -- receipt is gone (reorg)
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{}, nil,
+	)
 
 	// Revert to submitted
 	repo.EXPECT().RevertToSubmitted(gomock.Any(), "tx-reorg-001").Return(nil)
@@ -669,7 +710,7 @@ func TestReceiptPoller_PollIncluded_ReorgIntoNewBlock_UpdatesBlockInfo(t *testin
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1012), nil)
 	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
 
-	// Re-fetch receipt returns different block hash
+	// Batch returns receipt with different block hash
 	newBlockHash := common.HexToHash("0xbbbb000000000000000000000000000000000000000000000000000000000002")
 	receipt := &types.Receipt{
 		Status:            1,
@@ -679,7 +720,10 @@ func TestReceiptPoller_PollIncluded_ReorgIntoNewBlock_UpdatesBlockInfo(t *testin
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xhash_reorg_new1"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash_reorg_new1")).Return(receipt, nil)
+	hash := common.HexToHash("0xhash_reorg_new1")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	// Should update with new block info via MarkIncluded
 	repo.EXPECT().MarkIncluded(gomock.Any(), "tx-reorg-new-001", gomock.Any()).DoAndReturn(
@@ -730,7 +774,10 @@ func TestReceiptPoller_PollSubmitted_Reverted_StillImmediate_WithConfirmations(t
 		EffectiveGasPrice: big.NewInt(30_000_000_000),
 		TxHash:            common.HexToHash("0xhash_revert_conf"),
 	}
-	client.EXPECT().TransactionReceipt(gomock.Any(), common.HexToHash("0xhash_revert_conf")).Return(receipt, nil)
+	hash := common.HexToHash("0xhash_revert_conf")
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		map[common.Hash]*types.Receipt{hash: receipt}, nil,
+	)
 
 	// Should mark reverted immediately, NOT included
 	repo.EXPECT().MarkReverted(gomock.Any(), "tx-revert-conf", gomock.Any()).DoAndReturn(
@@ -752,5 +799,27 @@ func TestReceiptPoller_PollSubmitted_Reverted_StillImmediate_WithConfirmations(t
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(2012), nil)
 	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
 
+	rp.poll(ctx)
+}
+
+// ==========================================
+// New test: batch error handling
+// ==========================================
+
+func TestReceiptPoller_PollSubmitted_BatchError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	rp, repo, client := newTestReceiptPoller(ctrl, 0)
+	ctx := context.Background()
+
+	tx := submittedTx("tx-batch-err", "0xhash_batch_err")
+
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+
+	// BatchTransactionReceipts returns error
+	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
+		nil, fmt.Errorf("RPC batch call failed"),
+	)
+
+	// No state changes should happen -- no MarkConfirmed, MarkReverted, etc.
 	rp.poll(ctx)
 }
