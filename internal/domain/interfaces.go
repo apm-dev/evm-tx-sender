@@ -1,5 +1,9 @@
 package domain
 
+//go:generate mockgen -destination=../mocks/mock_repository.go -package=mocks github.com/apm-dev/evm-tx-sender/internal/domain Repository
+//go:generate mockgen -destination=../mocks/mock_ethclient.go -package=mocks github.com/apm-dev/evm-tx-sender/internal/domain EthClient
+//go:generate mockgen -destination=../mocks/mock_signer.go -package=mocks github.com/apm-dev/evm-tx-sender/internal/domain Signer
+
 import (
 	"context"
 	"math/big"
