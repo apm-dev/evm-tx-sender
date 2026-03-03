@@ -1,10 +1,10 @@
-package domain_test
+package domain
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/apm-dev/evm-tx-sender/internal/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -135,7 +135,7 @@ func TestParseAmountToSmallestUnit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := domain.ParseAmountToSmallestUnit(tt.amount, tt.decimals)
+			result, err := ParseAmountToSmallestUnit(tt.amount, tt.decimals)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -150,15 +150,15 @@ func TestParseAmountToSmallestUnit(t *testing.T) {
 
 func TestTxStatus_IsTerminal(t *testing.T) {
 	tests := []struct {
-		status   domain.TxStatus
+		status   TxStatus
 		terminal bool
 	}{
-		{domain.TxStatusQueued, false},
-		{domain.TxStatusPending, false},
-		{domain.TxStatusSubmitted, false},
-		{domain.TxStatusConfirmed, true},
-		{domain.TxStatusReverted, true},
-		{domain.TxStatusFailed, true},
+		{TxStatusQueued, false},
+		{TxStatusPending, false},
+		{TxStatusSubmitted, false},
+		{TxStatusConfirmed, true},
+		{TxStatusReverted, true},
+		{TxStatusFailed, true},
 	}
 
 	for _, tt := range tests {
@@ -171,13 +171,13 @@ func TestTxStatus_IsTerminal(t *testing.T) {
 func TestParsePriority(t *testing.T) {
 	tests := []struct {
 		input string
-		want  domain.Priority
+		want  Priority
 		ok    bool
 	}{
-		{"low", domain.PriorityLow, true},
-		{"normal", domain.PriorityNormal, true},
-		{"high", domain.PriorityHigh, true},
-		{"urgent", domain.PriorityUrgent, true},
+		{"low", PriorityLow, true},
+		{"normal", PriorityNormal, true},
+		{"high", PriorityHigh, true},
+		{"urgent", PriorityUrgent, true},
 		{"NORMAL", "", false},
 		{"", "", false},
 		{"invalid", "", false},
@@ -185,7 +185,7 @@ func TestParsePriority(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, ok := domain.ParsePriority(tt.input)
+			got, ok := ParsePriority(tt.input)
 			assert.Equal(t, tt.ok, ok)
 			if ok {
 				assert.Equal(t, tt.want, got)
