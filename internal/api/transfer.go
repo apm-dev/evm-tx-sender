@@ -78,6 +78,25 @@ type TransferResponse struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+// Create submits a new token transfer request.
+//
+// @Summary      Create transfer
+// @Description  Submit a new native or ERC20 token transfer. Returns immediately with QUEUED status;
+// @Description  the transfer is processed asynchronously by the pipeline.
+// @Description  Idempotency: repeat requests with the same idempotency_key and identical parameters
+// @Description  return the original response without creating a duplicate transaction.
+// @Tags         transfers
+// @Accept       json
+// @Produce      json
+// @Param        body  body      TransferRequest   true  "Transfer request"
+// @Success      202   {object}  TransferResponse  "Transfer accepted and queued"
+// @Failure      400   {object}  ErrorResponse     "Invalid request (missing fields, bad address, unsupported chain)"
+// @Failure      403   {object}  ErrorResponse     "Token not whitelisted or disabled"
+// @Failure      404   {object}  ErrorResponse     "Sender key not registered"
+// @Failure      409   {object}  ErrorResponse     "Idempotency key reused with different parameters"
+// @Failure      422   {object}  ErrorResponse     "Semantic error (zero amount, amount overflow, exceeds limit)"
+// @Failure      500   {object}  ErrorResponse     "Internal server error"
+// @Router       /transfers [post]
 func (h *TransferHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req TransferRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

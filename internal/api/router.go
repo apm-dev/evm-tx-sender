@@ -4,10 +4,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	_ "github.com/apm-dev/evm-tx-sender/docs" // swagger generated docs
 	"github.com/apm-dev/evm-tx-sender/internal/domain"
 	"github.com/apm-dev/evm-tx-sender/internal/pipeline"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func NewRouter(
@@ -35,6 +37,9 @@ func NewRouter(
 	})
 
 	r.Get("/v1/health", healthH.Health)
+
+	// Swagger UI: available at /swagger/index.html
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	return r
 }

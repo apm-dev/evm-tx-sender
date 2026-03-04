@@ -32,6 +32,17 @@ type ChainHealth struct {
 	RPCEndpoints int    `json:"rpc_endpoints"`
 }
 
+// Health returns the current health status of the service.
+//
+// @Summary      Health check
+// @Description  Returns the operational health of the service, including database connectivity,
+// @Description  per-chain RPC status and latest block number, and active pipeline queue depths.
+// @Description  Responds with 200 when all components are healthy, 503 when any component is degraded.
+// @Tags         health
+// @Produce      json
+// @Success      200  {object}  HealthResponse  "Service is healthy"
+// @Failure      503  {object}  HealthResponse  "Service is degraded"
+// @Router       /health [get]
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

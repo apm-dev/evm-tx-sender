@@ -1,0 +1,327 @@
+basePath: /v1
+consumes:
+- application/json
+definitions:
+  github_com_apm-dev_evm-tx-sender_internal_pipeline.PipelineInfo:
+    properties:
+      queue_depth:
+        type: integer
+      status:
+        type: string
+    type: object
+  internal_api.AttemptResp:
+    properties:
+      attempt_number:
+        type: integer
+      gas_price:
+        type: string
+      max_fee_per_gas:
+        type: string
+      max_priority_fee_per_gas:
+        type: string
+      status:
+        type: string
+      submitted_at:
+        type: string
+      tx_hash:
+        type: string
+    type: object
+  internal_api.ChainHealth:
+    properties:
+      block_number:
+        type: integer
+      healthy:
+        type: boolean
+      rpc_endpoints:
+        type: integer
+    type: object
+  internal_api.ErrorResponse:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  internal_api.HealthResponse:
+    properties:
+      chains:
+        additionalProperties:
+          $ref: '#/definitions/internal_api.ChainHealth'
+        type: object
+      db:
+        type: string
+      pipelines:
+        additionalProperties:
+          $ref: '#/definitions/github_com_apm-dev_evm-tx-sender_internal_pipeline.PipelineInfo'
+        type: object
+      status:
+        type: string
+    type: object
+  internal_api.TransferRequest:
+    properties:
+      amount:
+        type: string
+      chain_id:
+        type: integer
+      idempotency_key:
+        type: string
+      metadata:
+        items:
+          type: integer
+        type: array
+      priority:
+        type: string
+      recipient:
+        type: string
+      sender:
+        type: string
+      token:
+        type: string
+    type: object
+  internal_api.TransferResponse:
+    properties:
+      amount:
+        type: string
+      chain_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: string
+      recipient:
+        type: string
+      sender:
+        type: string
+      status:
+        type: string
+      token:
+        type: string
+      token_contract:
+        type: string
+      transfer_type:
+        type: string
+    type: object
+  internal_api.TxResponse:
+    properties:
+      attempts:
+        items:
+          $ref: '#/definitions/internal_api.AttemptResp'
+        type: array
+      block_hash:
+        type: string
+      block_number:
+        type: integer
+      chain_id:
+        type: integer
+      confirmations:
+        type: integer
+      confirmed_at:
+        type: string
+      created_at:
+        type: string
+      data:
+        type: string
+      effective_gas_price:
+        type: string
+      error:
+        type: string
+      error_code:
+        type: string
+      gas_used:
+        type: integer
+      id:
+        type: string
+      idempotency_key:
+        type: string
+      metadata:
+        items:
+          type: integer
+        type: array
+      nonce:
+        type: integer
+      receipt_status:
+        type: integer
+      sender:
+        type: string
+      status:
+        type: string
+      submitted_at:
+        type: string
+      to:
+        type: string
+      token_contract:
+        type: string
+      transfer_amount:
+        type: string
+      transfer_recipient:
+        type: string
+      transfer_token:
+        type: string
+      tx_hash:
+        type: string
+      updated_at:
+        type: string
+      value:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: API Support
+  description: |-
+    API for submitting and tracking EVM token transfers across multiple chains.
+    Supports native token and ERC20 transfers with nonce management, gas optimization, and retry logic.
+  title: EVM Transaction Sender API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: |-
+        Returns the operational health of the service, including database connectivity,
+        per-chain RPC status and latest block number, and active pipeline queue depths.
+        Responds with 200 when all components are healthy, 503 when any component is degraded.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Service is healthy
+          schema:
+            $ref: '#/definitions/internal_api.HealthResponse'
+        "503":
+          description: Service is degraded
+          schema:
+            $ref: '#/definitions/internal_api.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /transactions:
+    get:
+      description: |-
+        List transactions with optional filtering by chain, sender, or status.
+        Supports cursor-based pagination via the `after` query parameter (pass the last transaction ID from the previous page).
+      parameters:
+      - description: Filter by chain ID
+        in: query
+        name: chain_id
+        type: integer
+      - description: Filter by sender address (hex)
+        in: query
+        name: sender
+        type: string
+      - description: Filter by status (QUEUED|PENDING|SUBMITTED|CONFIRMED|REVERTED|FAILED)
+        in: query
+        name: status
+        type: string
+      - description: 'Maximum number of results to return (default: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Cursor for pagination: ULID of the last transaction from the
+          previous page'
+        in: query
+        name: after
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of transactions
+          schema:
+            items:
+              $ref: '#/definitions/internal_api.TxResponse'
+            type: array
+        "400":
+          description: Invalid query parameter
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      summary: List transactions
+      tags:
+      - transactions
+  /transactions/{id}:
+    get:
+      description: Fetch a transaction by its ULID identifier, including all broadcast
+        attempts and on-chain receipt data.
+      parameters:
+      - description: Transaction ULID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Transaction details
+          schema:
+            $ref: '#/definitions/internal_api.TxResponse'
+        "404":
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      summary: Get transaction
+      tags:
+      - transactions
+  /transfers:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Submit a new native or ERC20 token transfer. Returns immediately with QUEUED status;
+        the transfer is processed asynchronously by the pipeline.
+        Idempotency: repeat requests with the same idempotency_key and identical parameters
+        return the original response without creating a duplicate transaction.
+      parameters:
+      - description: Transfer request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.TransferRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Transfer accepted and queued
+          schema:
+            $ref: '#/definitions/internal_api.TransferResponse'
+        "400":
+          description: Invalid request (missing fields, bad address, unsupported chain)
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Token not whitelisted or disabled
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "404":
+          description: Sender key not registered
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "409":
+          description: Idempotency key reused with different parameters
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "422":
+          description: Semantic error (zero amount, amount overflow, exceeds limit)
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      summary: Create transfer
+      tags:
+      - transfers
+produces:
+- application/json
+schemes:
+- http
+- https
+swagger: "2.0"

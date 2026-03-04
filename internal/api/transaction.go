@@ -60,6 +60,17 @@ type AttemptResp struct {
 	SubmittedAt          string `json:"submitted_at"`
 }
 
+// Get retrieves a single transaction by ID.
+//
+// @Summary      Get transaction
+// @Description  Fetch a transaction by its ULID identifier, including all broadcast attempts and on-chain receipt data.
+// @Tags         transactions
+// @Produce      json
+// @Param        id   path      string       true  "Transaction ULID"
+// @Success      200  {object}  TxResponse   "Transaction details"
+// @Failure      404  {object}  ErrorResponse  "Transaction not found"
+// @Failure      500  {object}  ErrorResponse  "Internal server error"
+// @Router       /transactions/{id} [get]
 func (h *TransactionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -83,6 +94,22 @@ func (h *TransactionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// List returns a paginated list of transactions with optional filters.
+//
+// @Summary      List transactions
+// @Description  List transactions with optional filtering by chain, sender, or status.
+// @Description  Supports cursor-based pagination via the `after` query parameter (pass the last transaction ID from the previous page).
+// @Tags         transactions
+// @Produce      json
+// @Param        chain_id  query     integer         false  "Filter by chain ID"
+// @Param        sender    query     string          false  "Filter by sender address (hex)"
+// @Param        status    query     string          false  "Filter by status (QUEUED|PENDING|SUBMITTED|CONFIRMED|REVERTED|FAILED)"
+// @Param        limit     query     integer         false  "Maximum number of results to return (default: 50)"
+// @Param        after     query     string          false  "Cursor for pagination: ULID of the last transaction from the previous page"
+// @Success      200       {array}   TxResponse      "List of transactions"
+// @Failure      400       {object}  ErrorResponse   "Invalid query parameter"
+// @Failure      500       {object}  ErrorResponse   "Internal server error"
+// @Router       /transactions [get]
 func (h *TransactionHandler) List(w http.ResponseWriter, r *http.Request) {
 	filter := domain.TxFilter{
 		Sender: strings.ToLower(r.URL.Query().Get("sender")),
