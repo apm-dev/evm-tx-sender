@@ -13,20 +13,8 @@ An EVM transaction sender microservice for solver infrastructure. It handles the
 ### Docker Compose (quickest start)
 
 ```bash
-# Create a .env file with your chain config and signer keys
-cat > .env << 'EOF'
-CHAINS_42161_NAME=arbitrum
-CHAINS_42161_RPC_URLS=https://arb1.arbitrum.io/rpc,https://arbitrum-one-rpc.publicnode.com
-CHAINS_42161_BLOCK_TIME=250ms
-CHAINS_42161_CONFIRMATION_BLOCKS=0
-CHAINS_42161_NATIVE_SYMBOL=ETH
-CHAINS_42161_STUCK_THRESHOLD=60s
-CHAINS_42161_TOKENS_USDC_ADDRESS=0xaf88d065e77c8cC2239327C5EDb3A432268e5831
-CHAINS_42161_TOKENS_USDC_DECIMALS=6
-CHAINS_42161_TOKENS_USDC_MAX_TRANSFER=1000000000000
-TX_SENDER_KEYS_0xYOUR_ADDRESS=your_private_key_hex
-EOF
-
+# Create a .env and config.yml file with your chain config and signer keys
+# see .env.example and config.example.yml as references
 docker compose up
 ```
 
@@ -38,16 +26,8 @@ The service starts on port 8080. PostgreSQL runs alongside it with automatic mig
 # Start just Postgres
 docker compose up postgres -d
 
-# Set required env vars
-export DATABASE_URL="postgres://txsender:txsender@localhost:5432/txsender?sslmode=disable"
-export CHAINS_42161_NAME=arbitrum
-export CHAINS_42161_RPC_URLS="https://arb1.arbitrum.io/rpc"
-export CHAINS_42161_BLOCK_TIME=250ms
-export CHAINS_42161_CONFIRMATION_BLOCKS=0
-export CHAINS_42161_NATIVE_SYMBOL=ETH
-export TX_SENDER_KEYS_0xYOUR_ADDRESS=your_private_key_hex
-
-go run ./cmd/tx-sender
+# Set required env vars (.env) and config.yml
+make run
 ```
 
 ### Configuration
