@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/apm-dev/evm-tx-sender/internal/domain"
@@ -13,10 +14,11 @@ type HealthHandler struct {
 	pool    *pgxpool.Pool
 	clients map[uint64]domain.EthClient
 	manager *pipeline.Manager
+	log     *slog.Logger
 }
 
-func NewHealthHandler(pool *pgxpool.Pool, clients map[uint64]domain.EthClient, manager *pipeline.Manager) *HealthHandler {
-	return &HealthHandler{pool: pool, clients: clients, manager: manager}
+func NewHealthHandler(pool *pgxpool.Pool, clients map[uint64]domain.EthClient, manager *pipeline.Manager, log *slog.Logger) *HealthHandler {
+	return &HealthHandler{pool: pool, clients: clients, manager: manager, log: log}
 }
 
 type HealthResponse struct {
@@ -53,6 +55,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	// DB check
 	if err := h.pool.Ping(ctx); err != nil {
+		h.log.Warn("health: db ping failed", "error", err)
 		resp.DB = "disconnected"
 		resp.Status = "degraded"
 	} else {
@@ -67,8 +70,11 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		if ch.Healthy {
 			if bn, err := client.BlockNumber(ctx); err == nil {
 				ch.BlockNumber = bn
+			} else {
+				h.log.Warn("health: block number fetch failed", "chain_id", chainID, "error", err)
 			}
 		} else {
+			h.log.Warn("health: chain rpc unhealthy", "chain_id", chainID)
 			resp.Status = "degraded"
 		}
 		resp.Chains[chainID] = ch

@@ -64,7 +64,7 @@ func run(log *slog.Logger) error {
 	log.Info("database connected")
 
 	// Run migrations
-	repo := postgres.NewRepo(pool)
+	repo := postgres.NewRepo(pool, log)
 	if err := repo.Migrate(ctx); err != nil {
 		return fmt.Errorf("migrations: %w", err)
 	}

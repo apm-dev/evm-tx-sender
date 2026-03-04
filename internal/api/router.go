@@ -26,9 +26,9 @@ func NewRouter(
 	r.Use(RecoveryMiddleware(log))
 	r.Use(LoggingMiddleware(log))
 
-	transferH := NewTransferHandler(repo, signer, chains, manager)
-	txH := NewTransactionHandler(repo)
-	healthH := NewHealthHandler(pool, clients, manager)
+	transferH := NewTransferHandler(repo, signer, chains, manager, log)
+	txH := NewTransactionHandler(repo, log)
+	healthH := NewHealthHandler(pool, clients, manager, log)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Post("/transfers", transferH.Create)

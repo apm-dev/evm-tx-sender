@@ -5,6 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"time"
 
@@ -18,10 +19,11 @@ var migrationsFS embed.FS
 
 type Repo struct {
 	pool *pgxpool.Pool
+	log  *slog.Logger
 }
 
-func NewRepo(pool *pgxpool.Pool) *Repo {
-	return &Repo{pool: pool}
+func NewRepo(pool *pgxpool.Pool, log *slog.Logger) *Repo {
+	return &Repo{pool: pool, log: log}
 }
 
 func (r *Repo) Migrate(ctx context.Context) error {
@@ -466,23 +468,40 @@ func scanTransaction(row pgx.Row) (*domain.Transaction, error) {
 	var effectiveGasPriceStr *string
 	var gasLimit, nonce, blockNumber, gasUsed *int64
 	var receiptStatus *int16
+	// Nullable text columns need *string scan targets to handle NULL
+	var errorReason, errorCode, finalTxHash, blockHash, tokenContract, claimedBy *string
+	var confirmations *int
 
 	err := row.Scan(
 		&tx.ID, &tx.IdempotencyKey, &tx.ChainID, &tx.Sender, &tx.ToAddress,
 		&valueStr, &tx.Data, &gasLimit, &nonce, &tx.Priority,
-		&tx.Status, &tx.ErrorReason, &tx.ErrorCode,
-		&tx.FinalTxHash, &blockNumber, &tx.BlockHash, &gasUsed,
-		&effectiveGasPriceStr, &receiptStatus, &tx.ReceiptData, &tx.Confirmations,
-		&tx.TransferToken, &tx.TransferAmount, &tx.TransferRecipient, &tx.TokenContract, &tx.TokenDecimals,
+		&tx.Status, &errorReason, &errorCode,
+		&finalTxHash, &blockNumber, &blockHash, &gasUsed,
+		&effectiveGasPriceStr, &receiptStatus, &tx.ReceiptData, &confirmations,
+		&tx.TransferToken, &tx.TransferAmount, &tx.TransferRecipient, &tokenContract, &tx.TokenDecimals,
 		&tx.Metadata, &tx.CreatedAt, &tx.UpdatedAt, &tx.SubmittedAt, &tx.ConfirmedAt,
-		&tx.ClaimedBy, &tx.ClaimedAt,
+		&claimedBy, &tx.ClaimedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	// Convert nullable text columns: NULL becomes empty string
+	tx.ErrorReason = derefString(errorReason)
+	tx.ErrorCode = derefString(errorCode)
+	tx.FinalTxHash = derefString(finalTxHash)
+	tx.BlockHash = derefString(blockHash)
+	tx.TokenContract = derefString(tokenContract)
+	tx.ClaimedBy = derefString(claimedBy)
+	if confirmations != nil {
+		tx.Confirmations = *confirmations
+	}
+
 	tx.Value, _ = new(big.Int).SetString(valueStr, 10)
 	if tx.Value == nil {
+		if valueStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "value", "raw", valueStr)
+		}
 		tx.Value = big.NewInt(0)
 	}
 
@@ -507,7 +526,11 @@ func scanTransaction(row pgx.Row) (*domain.Transaction, error) {
 		tx.ReceiptStatus = &v
 	}
 	if effectiveGasPriceStr != nil {
-		tx.EffectiveGasPrice, _ = new(big.Int).SetString(*effectiveGasPriceStr, 10)
+		if v, ok := new(big.Int).SetString(*effectiveGasPriceStr, 10); ok {
+			tx.EffectiveGasPrice = v
+		} else if *effectiveGasPriceStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "effective_gas_price", "raw", *effectiveGasPriceStr)
+		}
 	}
 
 	return &tx, nil
@@ -519,23 +542,40 @@ func scanTransactionRows(rows pgx.Rows) (*domain.Transaction, error) {
 	var effectiveGasPriceStr *string
 	var gasLimit, nonce, blockNumber, gasUsed *int64
 	var receiptStatus *int16
+	// Nullable text columns need *string scan targets to handle NULL
+	var errorReason, errorCode, finalTxHash, blockHash, tokenContract, claimedBy *string
+	var confirmations *int
 
 	err := rows.Scan(
 		&tx.ID, &tx.IdempotencyKey, &tx.ChainID, &tx.Sender, &tx.ToAddress,
 		&valueStr, &tx.Data, &gasLimit, &nonce, &tx.Priority,
-		&tx.Status, &tx.ErrorReason, &tx.ErrorCode,
-		&tx.FinalTxHash, &blockNumber, &tx.BlockHash, &gasUsed,
-		&effectiveGasPriceStr, &receiptStatus, &tx.ReceiptData, &tx.Confirmations,
-		&tx.TransferToken, &tx.TransferAmount, &tx.TransferRecipient, &tx.TokenContract, &tx.TokenDecimals,
+		&tx.Status, &errorReason, &errorCode,
+		&finalTxHash, &blockNumber, &blockHash, &gasUsed,
+		&effectiveGasPriceStr, &receiptStatus, &tx.ReceiptData, &confirmations,
+		&tx.TransferToken, &tx.TransferAmount, &tx.TransferRecipient, &tokenContract, &tx.TokenDecimals,
 		&tx.Metadata, &tx.CreatedAt, &tx.UpdatedAt, &tx.SubmittedAt, &tx.ConfirmedAt,
-		&tx.ClaimedBy, &tx.ClaimedAt,
+		&claimedBy, &tx.ClaimedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	// Convert nullable text columns: NULL becomes empty string
+	tx.ErrorReason = derefString(errorReason)
+	tx.ErrorCode = derefString(errorCode)
+	tx.FinalTxHash = derefString(finalTxHash)
+	tx.BlockHash = derefString(blockHash)
+	tx.TokenContract = derefString(tokenContract)
+	tx.ClaimedBy = derefString(claimedBy)
+	if confirmations != nil {
+		tx.Confirmations = *confirmations
+	}
+
 	tx.Value, _ = new(big.Int).SetString(valueStr, 10)
 	if tx.Value == nil {
+		if valueStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "value", "raw", valueStr)
+		}
 		tx.Value = big.NewInt(0)
 	}
 
@@ -560,7 +600,11 @@ func scanTransactionRows(rows pgx.Rows) (*domain.Transaction, error) {
 		tx.ReceiptStatus = &v
 	}
 	if effectiveGasPriceStr != nil {
-		tx.EffectiveGasPrice, _ = new(big.Int).SetString(*effectiveGasPriceStr, 10)
+		if v, ok := new(big.Int).SetString(*effectiveGasPriceStr, 10); ok {
+			tx.EffectiveGasPrice = v
+		} else if *effectiveGasPriceStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "effective_gas_price", "raw", *effectiveGasPriceStr)
+		}
 	}
 
 	return &tx, nil
@@ -573,24 +617,39 @@ const attemptColumns = `id, transaction_id, attempt_number, tx_hash, gas_limit,
 func scanAttempt(rows pgx.Rows) (*domain.TxAttempt, error) {
 	var a domain.TxAttempt
 	var maxFeeStr, maxPriorityStr, gasPriceStr *string
+	var errorReason *string // nullable column
 
 	err := rows.Scan(
 		&a.ID, &a.TransactionID, &a.AttemptNumber, &a.TxHash, &a.GasLimit,
 		&maxFeeStr, &maxPriorityStr, &gasPriceStr, &a.TxType,
-		&a.RawTx, &a.Status, &a.ErrorReason, &a.CreatedAt, &a.ConfirmedAt,
+		&a.RawTx, &a.Status, &errorReason, &a.CreatedAt, &a.ConfirmedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	a.ErrorReason = derefString(errorReason)
+
 	if maxFeeStr != nil {
-		a.MaxFeePerGas, _ = new(big.Int).SetString(*maxFeeStr, 10)
+		if v, ok := new(big.Int).SetString(*maxFeeStr, 10); ok {
+			a.MaxFeePerGas = v
+		} else if *maxFeeStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "max_fee_per_gas", "raw", *maxFeeStr)
+		}
 	}
 	if maxPriorityStr != nil {
-		a.MaxPriorityFeePerGas, _ = new(big.Int).SetString(*maxPriorityStr, 10)
+		if v, ok := new(big.Int).SetString(*maxPriorityStr, 10); ok {
+			a.MaxPriorityFeePerGas = v
+		} else if *maxPriorityStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "max_priority_fee_per_gas", "raw", *maxPriorityStr)
+		}
 	}
 	if gasPriceStr != nil {
-		a.GasPrice, _ = new(big.Int).SetString(*gasPriceStr, 10)
+		if v, ok := new(big.Int).SetString(*gasPriceStr, 10); ok {
+			a.GasPrice = v
+		} else if *gasPriceStr != "" {
+			slog.Warn("repo: bigint parse failed", "field", "gas_price", "raw", *gasPriceStr)
+		}
 	}
 
 	return &a, nil
@@ -609,4 +668,12 @@ func nullIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// derefString returns the dereferenced string or empty string if nil (NULL).
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

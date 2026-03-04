@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,10 +14,11 @@ import (
 
 type TransactionHandler struct {
 	repo domain.Repository
+	log  *slog.Logger
 }
 
-func NewTransactionHandler(repo domain.Repository) *TransactionHandler {
-	return &TransactionHandler{repo: repo}
+func NewTransactionHandler(repo domain.Repository, log *slog.Logger) *TransactionHandler {
+	return &TransactionHandler{repo: repo, log: log}
 }
 
 type TxResponse struct {
@@ -80,6 +82,7 @@ func (h *TransactionHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.repo.GetTransaction(r.Context(), id)
 	if err != nil {
+		h.log.Error("db: get transaction failed", "tx_id", id, "error", err)
 		writeError(w, domain.NewAppError(domain.ErrCodeInternalError, 500, "database error"))
 		return
 	}
@@ -88,7 +91,10 @@ func (h *TransactionHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attempts, _ := h.repo.GetAttemptsByTransactionID(r.Context(), id)
+	attempts, err := h.repo.GetAttemptsByTransactionID(r.Context(), id)
+	if err != nil {
+		h.log.Warn("db: get attempts failed", "tx_id", id, "error", err)
+	}
 
 	resp := h.toResponse(tx, attempts)
 	writeJSON(w, http.StatusOK, resp)
@@ -133,6 +139,7 @@ func (h *TransactionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	txs, err := h.repo.ListTransactions(r.Context(), filter)
 	if err != nil {
+		h.log.Error("db: list transactions failed", "error", err)
 		writeError(w, domain.NewAppError(domain.ErrCodeInternalError, 500, "database error"))
 		return
 	}

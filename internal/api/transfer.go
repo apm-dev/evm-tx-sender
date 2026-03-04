@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strings"
@@ -38,6 +39,7 @@ type TransferHandler struct {
 	signer  domain.Signer
 	chains  map[uint64]*domain.ChainConfig
 	manager *pipeline.Manager
+	log     *slog.Logger
 }
 
 func NewTransferHandler(
@@ -45,12 +47,14 @@ func NewTransferHandler(
 	signer domain.Signer,
 	chains map[uint64]*domain.ChainConfig,
 	manager *pipeline.Manager,
+	log *slog.Logger,
 ) *TransferHandler {
 	return &TransferHandler{
 		repo:    repo,
 		signer:  signer,
 		chains:  chains,
 		manager: manager,
+		log:     log,
 	}
 }
 
@@ -112,6 +116,8 @@ func (h *TransferHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Check idempotency
 	existing, err := h.repo.GetTransactionByIdempotencyKey(r.Context(), req.IdempotencyKey)
 	if err != nil {
+		h.log.Error("db: get transaction by idempotency key failed",
+			"idempotency_key", req.IdempotencyKey, "error", err)
 		writeError(w, domain.NewAppError(domain.ErrCodeInternalError, 500, "database error"))
 		return
 	}
@@ -168,16 +174,20 @@ func (h *TransferHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.CreateTransaction(r.Context(), tx); err != nil {
+		h.log.Error("db: create transaction failed",
+			"tx_id", tx.ID, "chain_id", tx.ChainID, "sender", tx.Sender, "error", err)
 		writeError(w, domain.NewAppError(domain.ErrCodeInternalError, 500, "failed to create transaction"))
 		return
 	}
 
-	_ = h.repo.LogStateTransition(r.Context(), &domain.TxStateLog{
+	if err := h.repo.LogStateTransition(r.Context(), &domain.TxStateLog{
 		TransactionID: tx.ID,
 		ToStatus:      string(domain.TxStatusQueued),
 		Actor:         "api",
 		Reason:        fmt.Sprintf("transfer %s %s to %s", req.Amount, req.Token, req.Recipient),
-	})
+	}); err != nil {
+		h.log.Warn("db: log state transition failed", "tx_id", tx.ID, "error", err)
+	}
 
 	// Notify pipeline
 	h.manager.NotifyPipeline(tx.Sender, tx.ChainID)

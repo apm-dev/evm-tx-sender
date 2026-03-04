@@ -61,7 +61,7 @@ func setupTransferHandler(t *testing.T) (*mocks.MockRepository, *mocks.MockSigne
 	log := slog.Default()
 	manager := pipeline.NewManager(repo, nil, signer, ethereum.NewGasEngine(), chains, log)
 
-	handler := NewTransferHandler(repo, signer, chains, manager)
+	handler := NewTransferHandler(repo, signer, chains, manager, slog.Default())
 	return repo, signer, handler
 }
 
