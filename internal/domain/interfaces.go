@@ -81,7 +81,7 @@ type EthClient interface {
 	NonceAt(ctx context.Context, addr common.Address) (uint64, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
-	EstimateGas(ctx context.Context, to common.Address, data []byte, value *big.Int) (uint64, error)
+	EstimateGas(ctx context.Context, from common.Address, to common.Address, data []byte, value *big.Int) (uint64, error)
 	LatestBaseFee(ctx context.Context) (*big.Int, error)
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)

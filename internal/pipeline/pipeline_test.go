@@ -86,7 +86,7 @@ func TestPipeline_ProcessTx_HappyPath(t *testing.T) {
 
 	// Gas estimation
 	toAddr := common.HexToAddress(pipelineTo)
-	client.EXPECT().EstimateGas(gomock.Any(), toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(big.NewInt(30_000_000_000), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(2_000_000_000), nil)
 
@@ -142,7 +142,7 @@ func TestPipeline_ProcessTx_GasEstimationFails(t *testing.T) {
 
 	// Gas estimation fails
 	toAddr := common.HexToAddress(pipelineTo)
-	client.EXPECT().EstimateGas(gomock.Any(), toAddr, []byte(nil), tx.Value).Return(uint64(0), fmt.Errorf("execution reverted"))
+	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(0), fmt.Errorf("execution reverted"))
 
 	repo.EXPECT().MarkFailed(gomock.Any(), "tx-001", domain.ErrCodeEstimationReverted, gomock.Any()).Return(nil)
 
@@ -161,7 +161,7 @@ func TestPipeline_ProcessTx_SigningFails(t *testing.T) {
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
-	client.EXPECT().EstimateGas(gomock.Any(), toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(big.NewInt(30_000_000_000), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(2_000_000_000), nil)
 
@@ -189,7 +189,7 @@ func TestPipeline_ProcessTx_BroadcastFailsAllRetries(t *testing.T) {
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
-	client.EXPECT().EstimateGas(gomock.Any(), toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(big.NewInt(30_000_000_000), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(2_000_000_000), nil)
 
@@ -223,7 +223,7 @@ func TestPipeline_ProcessTx_BroadcastSucceedsOnRetry(t *testing.T) {
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
-	client.EXPECT().EstimateGas(gomock.Any(), toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(big.NewInt(30_000_000_000), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(2_000_000_000), nil)
 
@@ -304,7 +304,7 @@ func TestPipeline_ProcessTx_CorrectNonceInTransaction(t *testing.T) {
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(42)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
-	client.EXPECT().EstimateGas(gomock.Any(), toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(big.NewInt(30_000_000_000), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(2_000_000_000), nil)
 

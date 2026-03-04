@@ -129,7 +129,7 @@ func (p *Pipeline) processTx(ctx context.Context, tx *domain.Transaction, actor 
 
 	// 2. Estimate gas
 	toAddr := common.HexToAddress(tx.ToAddress)
-	gasParams, err := p.gas.Estimate(ctx, p.client, p.chain, toAddr, tx.Data, tx.Value, tx.Priority)
+	gasParams, err := p.gas.Estimate(ctx, p.client, p.chain, p.sender, toAddr, tx.Data, tx.Value, tx.Priority)
 	if err != nil {
 		log.Error("gas estimation failed", "error", err)
 		p.failTx(ctx, tx, domain.ErrCodeEstimationReverted, err.Error(), actor)

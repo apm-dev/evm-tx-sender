@@ -31,13 +31,14 @@ func (g *GasEngine) Estimate(
 	ctx context.Context,
 	client domain.EthClient,
 	chain *domain.ChainConfig,
+	from common.Address,
 	to common.Address,
 	data []byte,
 	value *big.Int,
 	priority domain.Priority,
 ) (domain.GasParams, error) {
 	// 1. Estimate gas limit
-	gasLimit, err := client.EstimateGas(ctx, to, data, value)
+	gasLimit, err := client.EstimateGas(ctx, from, to, data, value)
 	if err != nil {
 		return domain.GasParams{}, fmt.Errorf("gas estimation failed: %w", err)
 	}

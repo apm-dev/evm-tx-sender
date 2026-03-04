@@ -177,12 +177,13 @@ func (c *Client) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 	return tip, nil
 }
 
-func (c *Client) EstimateGas(ctx context.Context, to common.Address, data []byte, value *big.Int) (uint64, error) {
+func (c *Client) EstimateGas(ctx context.Context, from common.Address, to common.Address, data []byte, value *big.Int) (uint64, error) {
 	client, err := c.getClient()
 	if err != nil {
 		return 0, err
 	}
 	msg := ethereum.CallMsg{
+		From:  from,
 		To:    &to,
 		Data:  data,
 		Value: value,

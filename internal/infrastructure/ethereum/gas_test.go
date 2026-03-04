@@ -14,6 +14,8 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+var testFrom = common.HexToAddress("0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B")
+
 func gwei(n int64) *big.Int {
 	return new(big.Int).Mul(big.NewInt(n), big.NewInt(1_000_000_000))
 }
@@ -37,11 +39,11 @@ func TestGasEngine_Estimate_EIP1559_NormalPriority(t *testing.T) {
 	chain := defaultChain(true)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(gwei(30), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(gwei(2), nil)
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, params.TxType)
@@ -61,11 +63,11 @@ func TestGasEngine_Estimate_EIP1559_UrgentPriority(t *testing.T) {
 	chain := defaultChain(true)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(gwei(30), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(gwei(2), nil)
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityUrgent)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityUrgent)
 	require.NoError(t, err)
 
 	// priorityFee = 2 gwei * 250 / 100 = 5 gwei
@@ -82,11 +84,11 @@ func TestGasEngine_Estimate_EIP1559_LowPriority(t *testing.T) {
 	chain := defaultChain(true)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(gwei(30), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(gwei(2), nil)
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityLow)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityLow)
 	require.NoError(t, err)
 
 	// priorityFee = 2 * 80 / 100 = 1.6 gwei -> integer division = 1600000000
@@ -109,11 +111,11 @@ func TestGasEngine_Estimate_EIP1559_ClampsMinPriorityFee(t *testing.T) {
 	chain.MinPriorityFee = gwei(5) // min is 5 gwei
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(gwei(30), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(gwei(2), nil) // would result in 2 gwei < min
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	// Should be clamped to min 5 gwei
@@ -128,11 +130,11 @@ func TestGasEngine_Estimate_EIP1559_ClampsMaxFee(t *testing.T) {
 	chain.MaxMaxFee = gwei(50)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(gwei(100), nil) // high base fee -> maxFee would be 200+ gwei
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(gwei(2), nil)
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	assert.Equal(t, gwei(50).String(), params.MaxFeePerGas.String())
@@ -145,10 +147,10 @@ func TestGasEngine_Estimate_LegacyFallback(t *testing.T) {
 	chain := defaultChain(false) // no EIP-1559
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().SuggestGasPrice(gomock.Any()).Return(gwei(20), nil)
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, params.TxType)
@@ -164,11 +166,11 @@ func TestGasEngine_Estimate_EIP1559FallsBackToLegacy(t *testing.T) {
 	chain := defaultChain(true)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(nil, fmt.Errorf("not supported"))
 	client.EXPECT().SuggestGasPrice(gomock.Any()).Return(gwei(20), nil)
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, params.TxType) // legacy fallback
@@ -181,9 +183,9 @@ func TestGasEngine_Estimate_GasEstimationFailure(t *testing.T) {
 	chain := defaultChain(true)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(0), fmt.Errorf("execution reverted"))
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(0), fmt.Errorf("execution reverted"))
 
-	_, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	_, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "gas estimation failed")
 }
@@ -197,11 +199,11 @@ func TestGasEngine_Estimate_TipCapFallsBackTo1Gwei(t *testing.T) {
 	chain.MaxPriorityFee = nil
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().LatestBaseFee(gomock.Any()).Return(gwei(30), nil)
 	client.EXPECT().SuggestGasTipCap(gomock.Any()).Return(nil, fmt.Errorf("not supported"))
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	// Default tip is 1 gwei * 100/100 = 1 gwei
@@ -322,10 +324,10 @@ func TestGasEngine_Estimate_LegacyClampsGasPrice(t *testing.T) {
 	chain.MaxMaxFee = gwei(10)
 	to := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 
-	client.EXPECT().EstimateGas(gomock.Any(), to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
+	client.EXPECT().EstimateGas(gomock.Any(), testFrom, to, []byte(nil), big.NewInt(0)).Return(uint64(21000), nil)
 	client.EXPECT().SuggestGasPrice(gomock.Any()).Return(gwei(50), nil) // exceeds max
 
-	params, err := engine.Estimate(context.Background(), client, chain, to, nil, big.NewInt(0), domain.PriorityNormal)
+	params, err := engine.Estimate(context.Background(), client, chain, testFrom, to, nil, big.NewInt(0), domain.PriorityNormal)
 	require.NoError(t, err)
 
 	assert.Equal(t, gwei(10).String(), params.GasPrice.String()) // clamped to max

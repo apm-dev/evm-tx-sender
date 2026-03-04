@@ -317,6 +317,9 @@ func (h *TransferHandler) validate(req *TransferRequest) *domain.AppError {
 	if recipientAddr == (common.Address{}) {
 		return domain.NewAppError(domain.ErrCodeZeroAddressRecipient, 400, "recipient cannot be zero address")
 	}
+	if strings.EqualFold(req.Sender, req.Recipient) {
+		return domain.NewAppError(domain.ErrCodeInvalidRecipient, 400, "sender and recipient cannot be the same")
+	}
 	if req.Token == "" {
 		return domain.NewAppError(domain.ErrCodeMissingField, 400, "token is required")
 	}

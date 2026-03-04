@@ -103,18 +103,18 @@ func (mr *MockEthClientMockRecorder) CodeAt(ctx, addr any) *gomock.Call {
 }
 
 // EstimateGas mocks base method.
-func (m *MockEthClient) EstimateGas(ctx context.Context, to common.Address, data []byte, value *big.Int) (uint64, error) {
+func (m *MockEthClient) EstimateGas(ctx context.Context, from common.Address, to common.Address, data []byte, value *big.Int) (uint64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EstimateGas", ctx, to, data, value)
+	ret := m.ctrl.Call(m, "EstimateGas", ctx, from, to, data, value)
 	ret0, _ := ret[0].(uint64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // EstimateGas indicates an expected call of EstimateGas.
-func (mr *MockEthClientMockRecorder) EstimateGas(ctx, to, data, value any) *gomock.Call {
+func (mr *MockEthClientMockRecorder) EstimateGas(ctx, from, to, data, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EstimateGas", reflect.TypeOf((*MockEthClient)(nil).EstimateGas), ctx, to, data, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EstimateGas", reflect.TypeOf((*MockEthClient)(nil).EstimateGas), ctx, from, to, data, value)
 }
 
 // Healthy mocks base method.
