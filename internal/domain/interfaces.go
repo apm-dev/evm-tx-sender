@@ -44,6 +44,7 @@ type Repository interface {
 	GetNonceCursor(ctx context.Context, sender string, chainID uint64) (*NonceCursor, error)
 	InitNonceCursor(ctx context.Context, sender string, chainID uint64, nonce uint64) error
 	IncrementNonceCursor(ctx context.Context, sender string, chainID uint64) (uint64, error)
+	AssignNonceAndMarkPending(ctx context.Context, txID string, sender string, chainID uint64) (uint64, error)
 	SetNonceCursor(ctx context.Context, sender string, chainID uint64, nonce uint64) error
 
 	// State log

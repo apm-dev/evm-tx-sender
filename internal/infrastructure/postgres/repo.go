@@ -349,6 +349,40 @@ func (r *Repo) IncrementNonceCursor(ctx context.Context, sender string, chainID 
 	return assigned, err
 }
 
+func (r *Repo) AssignNonceAndMarkPending(ctx context.Context, txID string, sender string, chainID uint64) (uint64, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var assigned uint64
+	err = tx.QueryRow(ctx, `
+		UPDATE nonce_cursors
+		SET next_nonce = next_nonce + 1, updated_at = NOW()
+		WHERE sender = $1 AND chain_id = $2
+		RETURNING next_nonce - 1`,
+		sender, chainID,
+	).Scan(&assigned)
+	if err != nil {
+		return 0, fmt.Errorf("increment nonce cursor: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE transactions SET nonce = $1, updated_at = NOW() WHERE id = $2`,
+		assigned, txID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("mark pending: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+
+	return assigned, nil
+}
+
 func (r *Repo) SetNonceCursor(ctx context.Context, sender string, chainID uint64, nonce uint64) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE nonce_cursors SET next_nonce = $1, updated_at = NOW()

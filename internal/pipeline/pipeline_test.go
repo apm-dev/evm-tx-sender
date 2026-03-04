@@ -80,9 +80,8 @@ func TestPipeline_ProcessTx_HappyPath(t *testing.T) {
 	// State transition log QUEUED->PENDING
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
-	// Nonce assignment
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
-	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
+	// Nonce assignment + mark pending (atomic)
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 
 	// Gas estimation
 	toAddr := common.HexToAddress(pipelineTo)
@@ -121,7 +120,7 @@ func TestPipeline_ProcessTx_NonceAssignmentFails(t *testing.T) {
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	// Nonce assignment fails
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(0), fmt.Errorf("db error"))
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(0), fmt.Errorf("db error"))
 
 	// Should fail the transaction
 	repo.EXPECT().MarkFailed(gomock.Any(), "tx-001", domain.ErrCodeInternalError, gomock.Any()).Return(nil)
@@ -137,8 +136,7 @@ func TestPipeline_ProcessTx_GasEstimationFails(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
-	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 
 	// Gas estimation fails
 	toAddr := common.HexToAddress(pipelineTo)
@@ -157,8 +155,7 @@ func TestPipeline_ProcessTx_SigningFails(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
-	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
 	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
@@ -185,8 +182,7 @@ func TestPipeline_ProcessTx_BroadcastFailsAllRetries(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
-	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
 	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
@@ -219,8 +215,7 @@ func TestPipeline_ProcessTx_BroadcastSucceedsOnRetry(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
-	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
 	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)
@@ -300,8 +295,7 @@ func TestPipeline_ProcessTx_CorrectNonceInTransaction(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(42), nil)
-	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(42)).Return(nil)
+	repo.EXPECT().AssignNonceAndMarkPending(gomock.Any(), "tx-001", pipelineSenderHex, uint64(1)).Return(uint64(42), nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
 	client.EXPECT().EstimateGas(gomock.Any(), pipelineSender, toAddr, []byte(nil), tx.Value).Return(uint64(21000), nil)

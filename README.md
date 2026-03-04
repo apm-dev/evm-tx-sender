@@ -305,7 +305,7 @@ Schema migrations are embedded in the binary and run automatically on startup. A
 - **Authentication and authorization** -- add API key or JWT auth for multi-tenant deployments.
 - **Balance tracking** -- monitor sender EOA balances per token, reject transfers that would overdraft, and alert when balances are low.
 - **Smart sender selection** -- when no sender is specified, automatically pick one with sufficient balance for the requested transfer.
-- **Nonce + pending mark in a single DB transaction** -- currently nonce increment and marking pending are two separate DB calls; wrapping them in one transaction would be safer.
+- **Nonce + pending mark in a single DB transaction** -- currently nonce increment and marking pending are two separate DB calls; wrapping them in one transaction would be safer. (IMPLEMENTED)
 - **Metrics export** -- Prometheus metrics for transaction throughput, gas costs, error rates, and queue depths.
 - **Rate limiting** -- per-caller rate limits to prevent queue flooding.
 

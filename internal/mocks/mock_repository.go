@@ -43,6 +43,21 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AssignNonceAndMarkPending mocks base method.
+func (m *MockRepository) AssignNonceAndMarkPending(ctx context.Context, txID string, sender string, chainID uint64) (uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AssignNonceAndMarkPending", ctx, txID, sender, chainID)
+	ret0, _ := ret[0].(uint64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AssignNonceAndMarkPending indicates an expected call of AssignNonceAndMarkPending.
+func (mr *MockRepositoryMockRecorder) AssignNonceAndMarkPending(ctx, txID, sender, chainID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignNonceAndMarkPending", reflect.TypeOf((*MockRepository)(nil).AssignNonceAndMarkPending), ctx, txID, sender, chainID)
+}
+
 // ClaimNextQueued mocks base method.
 func (m *MockRepository) ClaimNextQueued(ctx context.Context, sender string, chainID uint64, claimedBy string) (*domain.Transaction, error) {
 	m.ctrl.T.Helper()

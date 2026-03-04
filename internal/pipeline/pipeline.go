@@ -111,16 +111,11 @@ func (p *Pipeline) processTx(ctx context.Context, tx *domain.Transaction, actor 
 	// Log state transition QUEUED -> PENDING
 	p.logTransition(ctx, tx.ID, string(domain.TxStatusQueued), string(domain.TxStatusPending), actor, "claimed by pipeline")
 
-	// 1. Assign nonce
-	nonce, err := p.repo.IncrementNonceCursor(ctx, p.senderHex(), p.chainID)
+	// 1. Assign nonce and mark pending atomically
+	nonce, err := p.repo.AssignNonceAndMarkPending(ctx, tx.ID, p.senderHex(), p.chainID)
 	if err != nil {
 		log.Error("nonce assignment failed", "error", err)
 		p.failTx(ctx, tx, domain.ErrCodeInternalError, "nonce assignment: "+err.Error(), actor)
-		return
-	}
-
-	if err := p.repo.MarkPending(ctx, tx.ID, nonce); err != nil {
-		log.Error("failed to mark pending with nonce", "error", err)
 		return
 	}
 
