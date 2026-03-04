@@ -13,3 +13,5 @@ __debug_bin*
 
 # configs
 config.yaml
+config.yml
+.env
