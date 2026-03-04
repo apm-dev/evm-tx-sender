@@ -49,8 +49,8 @@ type Repository interface {
 	LogStateTransition(ctx context.Context, log *TxStateLog) error
 
 	// Submitted tx queries for background workers
-	GetSubmittedTransactions(ctx context.Context, chainID uint64) ([]*Transaction, error)
-	GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*Transaction, error)
+	GetSubmittedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*Transaction, error)
+	GetIncludedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*Transaction, error)
 	GetStuckTransactions(ctx context.Context, chainID uint64, olderThan big.Int) ([]*Transaction, error)
 	CountQueuedTransactions(ctx context.Context, sender string, chainID uint64) (int, error)
 }

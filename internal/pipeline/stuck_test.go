@@ -53,7 +53,7 @@ func TestStuckDetector_Check_TransactionPastThreshold_GasBumped(t *testing.T) {
 
 	tx := stuckTransaction("tx-stuck-1", 5*time.Minute) // older than 3min threshold
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	lastAttemptCreated := time.Now().UTC().Add(-2 * time.Minute) // older than GasBumpInterval (30s)
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-stuck-1").Return([]*domain.TxAttempt{
@@ -113,7 +113,7 @@ func TestStuckDetector_Check_MaxBumpsExceeded_MarksFailed(t *testing.T) {
 
 	tx := stuckTransaction("tx-stuck-2", 30*time.Minute)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// More than maxGasBumps (5) attempts
 	attempts := make([]*domain.TxAttempt, maxGasBumps+1)
@@ -142,7 +142,7 @@ func TestStuckDetector_Check_NotPastThreshold_Skipped(t *testing.T) {
 	// Submitted only 1 minute ago, threshold is 3 minutes
 	tx := stuckTransaction("tx-fresh", 1*time.Minute)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Should not call GetAttemptsByTransactionID or any gas bump operations
 	sd.check(ctx)
@@ -155,7 +155,7 @@ func TestStuckDetector_Check_GasBumpIntervalNotElapsed_Skipped(t *testing.T) {
 
 	tx := stuckTransaction("tx-stuck-3", 5*time.Minute)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Last attempt was only 10 seconds ago (GasBumpInterval is 30s)
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-stuck-3").Return([]*domain.TxAttempt{
@@ -184,7 +184,7 @@ func TestStuckDetector_Check_NilNonce_Skipped(t *testing.T) {
 	tx := stuckTransaction("tx-stuck-4", 5*time.Minute)
 	tx.Nonce = nil // no nonce assigned
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-stuck-4").Return([]*domain.TxAttempt{
 		{
@@ -211,7 +211,7 @@ func TestStuckDetector_Check_NilSubmittedAt_Skipped(t *testing.T) {
 	tx := stuckTransaction("tx-stuck-5", 5*time.Minute)
 	tx.SubmittedAt = nil // no submitted_at
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Should be skipped in the loop
 	sd.check(ctx)
@@ -224,7 +224,7 @@ func TestStuckDetector_Check_SigningFailure_Continues(t *testing.T) {
 
 	tx := stuckTransaction("tx-stuck-6", 5*time.Minute)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-stuck-6").Return([]*domain.TxAttempt{
 		{
 			ID:                   "att-1",
@@ -251,7 +251,7 @@ func TestStuckDetector_Check_BroadcastFailure_NonFatal(t *testing.T) {
 
 	tx := stuckTransaction("tx-stuck-7", 5*time.Minute)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-stuck-7").Return([]*domain.TxAttempt{
 		{
 			ID:                   "att-1",
@@ -287,7 +287,7 @@ func TestStuckDetector_Check_LegacyTxBump(t *testing.T) {
 
 	tx := stuckTransaction("tx-stuck-8", 5*time.Minute)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), "tx-stuck-8").Return([]*domain.TxAttempt{
 		{
 			ID:            "att-1",
@@ -352,7 +352,7 @@ func TestStuckDetector_Check_DBErrorOnGetSubmitted(t *testing.T) {
 	sd, repo, _, _ := newTestStuckDetector(ctrl)
 	ctx := context.Background()
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, fmt.Errorf("db error"))
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("db error"))
 
 	// Should not panic
 	sd.check(ctx)

@@ -73,7 +73,7 @@ func (sd *StuckDetector) Run(ctx context.Context) {
 }
 
 func (sd *StuckDetector) check(ctx context.Context) {
-	txs, err := sd.repo.GetSubmittedTransactions(ctx, sd.chainID)
+	txs, err := sd.repo.GetSubmittedTransactions(ctx, sd.chainID, 10000, "")
 	if err != nil {
 		sd.log.Error("failed to get submitted txs", "error", err)
 		return

@@ -22,7 +22,8 @@ func newTestReceiptPoller(ctrl *gomock.Controller, confirmationBlocks int) (*Rec
 	client := mocks.NewMockEthClient(ctrl)
 	log := slog.Default()
 
-	rp := NewReceiptPoller(1, confirmationBlocks, repo, client, 2*time.Second, log)
+	// Use a large chunk size (100) so existing tests don't need multiple pages
+	rp := NewReceiptPoller(1, confirmationBlocks, 100, repo, client, 2*time.Second, log)
 	return rp, repo, client
 }
 
@@ -61,7 +62,7 @@ func TestReceiptPoller_Poll_ReceiptConfirmed(t *testing.T) {
 
 	tx := submittedTx("tx-001", "0xabc123")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            1,
@@ -102,7 +103,7 @@ func TestReceiptPoller_Poll_ReceiptReverted(t *testing.T) {
 
 	tx := submittedTx("tx-002", "0xdef456")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            0, // reverted
@@ -135,7 +136,7 @@ func TestReceiptPoller_Poll_NoReceiptYet(t *testing.T) {
 
 	tx := submittedTx("tx-003", "0xfoo789")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Batch returns empty map -- no receipt yet
 	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
@@ -151,7 +152,7 @@ func TestReceiptPoller_Poll_RPCErrorOnGetSubmitted(t *testing.T) {
 	rp, repo, _ := newTestReceiptPoller(ctrl, 0)
 	ctx := context.Background()
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, fmt.Errorf("db error"))
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("db error"))
 
 	// Should not panic, just log and return
 	rp.poll(ctx)
@@ -165,7 +166,7 @@ func TestReceiptPoller_Poll_EmptyTxHash(t *testing.T) {
 	// Transaction with empty FinalTxHash should be skipped
 	tx := submittedTx("tx-004", "")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// No batch call -- all hashes filtered, returns early
 	rp.poll(ctx)
@@ -181,7 +182,7 @@ func TestReceiptPoller_Poll_MultipleTransactions(t *testing.T) {
 	tx1 := submittedTx("tx-005", txHash1)
 	tx2 := submittedTx("tx-006", txHash2)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx1, tx2}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx1, tx2}, nil)
 
 	// tx1: confirmed, tx2: no receipt yet (absent from map)
 	hash1 := common.HexToHash(txHash1)
@@ -211,7 +212,7 @@ func TestReceiptPoller_MarkAttemptConfirmed_ReplacesOthers(t *testing.T) {
 
 	tx := submittedTx("tx-007", "0xhash_bump2")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            1,
@@ -255,7 +256,7 @@ func TestReceiptPoller_Poll_ERC20ConfirmedWithValidTransferLog(t *testing.T) {
 	tx.TokenContract = tokenContract
 	tx.TransferRecipient = recipient
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	transferSig := crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 	receipt := &types.Receipt{
@@ -306,7 +307,7 @@ func TestReceiptPoller_Poll_ERC20ConfirmedNoTransferLog(t *testing.T) {
 	tx.TokenContract = tokenContract
 	tx.TransferRecipient = recipient
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            1,
@@ -352,7 +353,7 @@ func TestReceiptPoller_Poll_ERC20TransferLogWrongContract(t *testing.T) {
 	tx.TokenContract = tokenContract
 	tx.TransferRecipient = recipient
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	transferSig := crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 	receipt := &types.Receipt{
@@ -398,7 +399,7 @@ func TestReceiptPoller_Poll_ERC20TransferLogWrongRecipient(t *testing.T) {
 	tx.TokenContract = tokenContract
 	tx.TransferRecipient = recipient
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	transferSig := crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 	receipt := &types.Receipt{
@@ -439,7 +440,7 @@ func TestReceiptPoller_Poll_NativeTransferSkipsERC20Verification(t *testing.T) {
 	tx := submittedTx("tx-native", "0xnativehash")
 	// tx.TokenContract is empty (native transfer)
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            1,
@@ -474,7 +475,7 @@ func TestReceiptPoller_Poll_ERC20RevertedReceiptSkipsLogCheck(t *testing.T) {
 	tx.TokenContract = tokenContract
 	tx.TransferRecipient = recipient
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            0, // reverted on-chain
@@ -538,7 +539,7 @@ func TestReceiptPoller_PollSubmitted_WithConfirmations_MarksIncluded(t *testing.
 
 	tx := submittedTx("tx-incl-001", "0xhash_incl1")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            1,
@@ -573,7 +574,7 @@ func TestReceiptPoller_PollSubmitted_WithConfirmations_MarksIncluded(t *testing.
 	// pollIncluded will also run -- set up expectations
 	// BlockNumber is called once at start of pollIncluded
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1000), nil)
-	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	rp.poll(ctx)
 }
@@ -587,11 +588,11 @@ func TestReceiptPoller_PollIncluded_EnoughConfirmations_Confirmed(t *testing.T) 
 	tx := includedTx("tx-conf-001", "0xhash_conf1", 1000, blockHash)
 
 	// pollSubmitted phase: no submitted txs
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	// pollIncluded phase
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1012), nil)
-	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Batch fetch receipt -- same block hash confirms canonical
 	receipt := &types.Receipt{
@@ -640,11 +641,11 @@ func TestReceiptPoller_PollIncluded_NotEnoughConfirmations_Skipped(t *testing.T)
 	tx := includedTx("tx-skip-001", "0xhash_skip1", 1000, blockHash)
 
 	// pollSubmitted phase: no submitted txs
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	// pollIncluded phase: current block is 1005, need 12 confirmations
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1005), nil)
-	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// No BatchTransactionReceipts call, no state changes -- depth < 12
 	rp.poll(ctx)
@@ -664,11 +665,11 @@ func TestReceiptPoller_PollIncluded_ReorgDetected_RevertsToSubmitted(t *testing.
 	rawTx, _ := testEthTx.MarshalBinary()
 
 	// pollSubmitted phase: no submitted txs
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	// pollIncluded phase
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1012), nil)
-	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Batch returns empty map -- receipt is gone (reorg)
 	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
@@ -704,11 +705,11 @@ func TestReceiptPoller_PollIncluded_ReorgIntoNewBlock_UpdatesBlockInfo(t *testin
 	tx := includedTx("tx-reorg-new-001", "0xhash_reorg_new1", 1000, oldBlockHash)
 
 	// pollSubmitted phase: no submitted txs
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	// pollIncluded phase
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(1012), nil)
-	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// Batch returns receipt with different block hash
 	newBlockHash := common.HexToHash("0xbbbb000000000000000000000000000000000000000000000000000000000002")
@@ -751,7 +752,7 @@ func TestReceiptPoller_PollIncluded_ZeroConfirmations_SkipsPhase(t *testing.T) {
 	ctx := context.Background()
 
 	// pollSubmitted: no submitted txs
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	// pollIncluded should return immediately -- NO calls to GetIncludedTransactions or BlockNumber
 	rp.poll(ctx)
@@ -764,7 +765,7 @@ func TestReceiptPoller_PollSubmitted_Reverted_StillImmediate_WithConfirmations(t
 
 	tx := submittedTx("tx-revert-conf", "0xhash_revert_conf")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	receipt := &types.Receipt{
 		Status:            0, // reverted
@@ -797,7 +798,7 @@ func TestReceiptPoller_PollSubmitted_Reverted_StillImmediate_WithConfirmations(t
 
 	// pollIncluded will also run
 	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(2012), nil)
-	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1)).Return(nil, nil)
+	repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	rp.poll(ctx)
 }
@@ -813,7 +814,7 @@ func TestReceiptPoller_PollSubmitted_BatchError(t *testing.T) {
 
 	tx := submittedTx("tx-batch-err", "0xhash_batch_err")
 
-	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1)).Return([]*domain.Transaction{tx}, nil)
+	repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), gomock.Any(), gomock.Any()).Return([]*domain.Transaction{tx}, nil)
 
 	// BatchTransactionReceipts returns error
 	client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Any()).Return(
@@ -822,4 +823,163 @@ func TestReceiptPoller_PollSubmitted_BatchError(t *testing.T) {
 
 	// No state changes should happen -- no MarkConfirmed, MarkReverted, etc.
 	rp.poll(ctx)
+}
+
+// ==========================================
+// New tests: chunk-based pagination
+// ==========================================
+
+func TestReceiptPoller_PollSubmitted_MultipleChunks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := mocks.NewMockRepository(ctrl)
+	client := mocks.NewMockEthClient(ctrl)
+	log := slog.Default()
+
+	// Chunk size of 2
+	rp := NewReceiptPoller(1, 0, 2, repo, client, 2*time.Second, log)
+	ctx := context.Background()
+
+	txHash1 := "0xaaaa000000000000000000000000000000000000000000000000000000000001"
+	txHash2 := "0xaaaa000000000000000000000000000000000000000000000000000000000002"
+	txHash3 := "0xaaaa000000000000000000000000000000000000000000000000000000000003"
+
+	tx1 := submittedTx("tx-chunk-001", txHash1)
+	tx2 := submittedTx("tx-chunk-002", txHash2)
+	tx3 := submittedTx("tx-chunk-003", txHash3)
+
+	// First chunk: 2 txs (cursor="")
+	gomock.InOrder(
+		repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), 2, "").Return([]*domain.Transaction{tx1, tx2}, nil),
+		// Second chunk: 1 tx (cursor="tx-chunk-002"), less than chunk size -> last page
+		repo.EXPECT().GetSubmittedTransactions(gomock.Any(), uint64(1), 2, "tx-chunk-002").Return([]*domain.Transaction{tx3}, nil),
+	)
+
+	// Batch receipts for chunk 1
+	hash1 := common.HexToHash(txHash1)
+	hash2 := common.HexToHash(txHash2)
+	receipt1 := &types.Receipt{
+		Status: 1, BlockNumber: big.NewInt(100), BlockHash: common.HexToHash("0xb1"),
+		GasUsed: 21000, EffectiveGasPrice: big.NewInt(20_000_000_000), TxHash: hash1,
+	}
+	receipt2 := &types.Receipt{
+		Status: 1, BlockNumber: big.NewInt(101), BlockHash: common.HexToHash("0xb2"),
+		GasUsed: 21000, EffectiveGasPrice: big.NewInt(20_000_000_000), TxHash: hash2,
+	}
+
+	// Batch receipts for chunk 2
+	hash3 := common.HexToHash(txHash3)
+	receipt3 := &types.Receipt{
+		Status: 1, BlockNumber: big.NewInt(102), BlockHash: common.HexToHash("0xb3"),
+		GasUsed: 21000, EffectiveGasPrice: big.NewInt(20_000_000_000), TxHash: hash3,
+	}
+
+	gomock.InOrder(
+		client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Len(2)).Return(
+			map[common.Hash]*types.Receipt{hash1: receipt1, hash2: receipt2}, nil,
+		),
+		client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Len(1)).Return(
+			map[common.Hash]*types.Receipt{hash3: receipt3}, nil,
+		),
+	)
+
+	// All 3 should be confirmed
+	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-chunk-001", gomock.Any()).Return(nil)
+	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-chunk-002", gomock.Any()).Return(nil)
+	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-chunk-003", gomock.Any()).Return(nil)
+	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+
+	rp.pollSubmitted(ctx)
+}
+
+func TestReceiptPoller_PollIncluded_MultipleChunks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := mocks.NewMockRepository(ctrl)
+	client := mocks.NewMockEthClient(ctrl)
+	log := slog.Default()
+
+	// Chunk size of 2, confirmation depth 3
+	rp := NewReceiptPoller(1, 3, 2, repo, client, 2*time.Second, log)
+	ctx := context.Background()
+
+	blockHash1 := common.HexToHash("0xaaaa000000000000000000000000000000000000000000000000000000000001").Hex()
+	blockHash2 := common.HexToHash("0xaaaa000000000000000000000000000000000000000000000000000000000002").Hex()
+	blockHash3 := common.HexToHash("0xaaaa000000000000000000000000000000000000000000000000000000000003").Hex()
+
+	txHash1 := "0xbbbb000000000000000000000000000000000000000000000000000000000001"
+	txHash2 := "0xbbbb000000000000000000000000000000000000000000000000000000000002"
+	txHash3 := "0xbbbb000000000000000000000000000000000000000000000000000000000003"
+
+	tx1 := includedTx("tx-incl-chunk-001", txHash1, 100, blockHash1)
+	tx2 := includedTx("tx-incl-chunk-002", txHash2, 101, blockHash2)
+	tx3 := includedTx("tx-incl-chunk-003", txHash3, 102, blockHash3)
+
+	// BlockNumber called once before the loop
+	client.EXPECT().BlockNumber(gomock.Any()).Return(uint64(105), nil)
+
+	// First chunk: 2 txs (cursor="")
+	gomock.InOrder(
+		repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), 2, "").Return([]*domain.Transaction{tx1, tx2}, nil),
+		// Second chunk: 1 tx (cursor="tx-incl-chunk-002"), less than chunk size -> last page
+		repo.EXPECT().GetIncludedTransactions(gomock.Any(), uint64(1), 2, "tx-incl-chunk-002").Return([]*domain.Transaction{tx3}, nil),
+	)
+
+	// Batch receipts for chunk 1 (tx1 at block 100 has depth 5 >= 3, tx2 at block 101 has depth 4 >= 3)
+	hash1 := common.HexToHash(txHash1)
+	hash2 := common.HexToHash(txHash2)
+	receipt1 := &types.Receipt{
+		Status: 1, BlockNumber: big.NewInt(100),
+		BlockHash: common.HexToHash(blockHash1), GasUsed: 21000,
+		EffectiveGasPrice: big.NewInt(20_000_000_000), TxHash: hash1,
+	}
+	receipt2 := &types.Receipt{
+		Status: 1, BlockNumber: big.NewInt(101),
+		BlockHash: common.HexToHash(blockHash2), GasUsed: 21000,
+		EffectiveGasPrice: big.NewInt(20_000_000_000), TxHash: hash2,
+	}
+
+	// Batch receipts for chunk 2 (tx3 at block 102 has depth 3 >= 3)
+	hash3 := common.HexToHash(txHash3)
+	receipt3 := &types.Receipt{
+		Status: 1, BlockNumber: big.NewInt(102),
+		BlockHash: common.HexToHash(blockHash3), GasUsed: 21000,
+		EffectiveGasPrice: big.NewInt(20_000_000_000), TxHash: hash3,
+	}
+
+	gomock.InOrder(
+		client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Len(2)).Return(
+			map[common.Hash]*types.Receipt{hash1: receipt1, hash2: receipt2}, nil,
+		),
+		client.EXPECT().BatchTransactionReceipts(gomock.Any(), gomock.Len(1)).Return(
+			map[common.Hash]*types.Receipt{hash3: receipt3}, nil,
+		),
+	)
+
+	// All 3 should be confirmed
+	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-incl-chunk-001", gomock.Any()).Return(nil)
+	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-incl-chunk-002", gomock.Any()).Return(nil)
+	repo.EXPECT().MarkConfirmed(gomock.Any(), "tx-incl-chunk-003", gomock.Any()).Return(nil)
+	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	repo.EXPECT().GetAttemptsByTransactionID(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+
+	rp.pollIncluded(ctx)
+}
+
+func TestReceiptPoller_DefaultChunkSize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := mocks.NewMockRepository(ctrl)
+	client := mocks.NewMockEthClient(ctrl)
+	log := slog.Default()
+
+	// Zero chunk size should default to 50
+	rp := NewReceiptPoller(1, 0, 0, repo, client, 2*time.Second, log)
+	assert.Equal(t, 50, rp.receiptChunkSize)
+
+	// Negative chunk size should default to 50
+	rp = NewReceiptPoller(1, 0, -1, repo, client, 2*time.Second, log)
+	assert.Equal(t, 50, rp.receiptChunkSize)
+
+	// Positive chunk size should be used as-is
+	rp = NewReceiptPoller(1, 0, 25, repo, client, 2*time.Second, log)
+	assert.Equal(t, 25, rp.receiptChunkSize)
 }

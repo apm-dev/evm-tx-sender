@@ -131,18 +131,18 @@ func (mr *MockRepositoryMockRecorder) GetBroadcastAttemptsByChain(ctx, chainID a
 }
 
 // GetIncludedTransactions mocks base method.
-func (m *MockRepository) GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
+func (m *MockRepository) GetIncludedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*domain.Transaction, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIncludedTransactions", ctx, chainID)
+	ret := m.ctrl.Call(m, "GetIncludedTransactions", ctx, chainID, limit, afterID)
 	ret0, _ := ret[0].([]*domain.Transaction)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetIncludedTransactions indicates an expected call of GetIncludedTransactions.
-func (mr *MockRepositoryMockRecorder) GetIncludedTransactions(ctx, chainID any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) GetIncludedTransactions(ctx, chainID, limit, afterID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIncludedTransactions", reflect.TypeOf((*MockRepository)(nil).GetIncludedTransactions), ctx, chainID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIncludedTransactions", reflect.TypeOf((*MockRepository)(nil).GetIncludedTransactions), ctx, chainID, limit, afterID)
 }
 
 // GetNonceCursor mocks base method.
@@ -176,18 +176,18 @@ func (mr *MockRepositoryMockRecorder) GetStuckTransactions(ctx, chainID, olderTh
 }
 
 // GetSubmittedTransactions mocks base method.
-func (m *MockRepository) GetSubmittedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
+func (m *MockRepository) GetSubmittedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*domain.Transaction, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSubmittedTransactions", ctx, chainID)
+	ret := m.ctrl.Call(m, "GetSubmittedTransactions", ctx, chainID, limit, afterID)
 	ret0, _ := ret[0].([]*domain.Transaction)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetSubmittedTransactions indicates an expected call of GetSubmittedTransactions.
-func (mr *MockRepositoryMockRecorder) GetSubmittedTransactions(ctx, chainID any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) GetSubmittedTransactions(ctx, chainID, limit, afterID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubmittedTransactions", reflect.TypeOf((*MockRepository)(nil).GetSubmittedTransactions), ctx, chainID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubmittedTransactions", reflect.TypeOf((*MockRepository)(nil).GetSubmittedTransactions), ctx, chainID, limit, afterID)
 }
 
 // GetTransaction mocks base method.

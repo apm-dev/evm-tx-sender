@@ -369,9 +369,17 @@ func (r *Repo) LogStateTransition(ctx context.Context, log *domain.TxStateLog) e
 
 // Queries for background workers
 
-func (r *Repo) GetSubmittedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT `+txColumns+` FROM transactions WHERE status = 'SUBMITTED' AND chain_id = $1 ORDER BY submitted_at ASC`, chainID)
+func (r *Repo) GetSubmittedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*domain.Transaction, error) {
+	query := `SELECT ` + txColumns + ` FROM transactions WHERE status = 'SUBMITTED' AND chain_id = $1`
+	args := []any{chainID}
+	if afterID != "" {
+		query += ` AND id > $2 ORDER BY id ASC LIMIT $3`
+		args = append(args, afterID, limit)
+	} else {
+		query += ` ORDER BY id ASC LIMIT $2`
+		args = append(args, limit)
+	}
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -388,9 +396,17 @@ func (r *Repo) GetSubmittedTransactions(ctx context.Context, chainID uint64) ([]
 	return txs, rows.Err()
 }
 
-func (r *Repo) GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*domain.Transaction, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT `+txColumns+` FROM transactions WHERE status = 'INCLUDED' AND chain_id = $1 ORDER BY updated_at ASC`, chainID)
+func (r *Repo) GetIncludedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*domain.Transaction, error) {
+	query := `SELECT ` + txColumns + ` FROM transactions WHERE status = 'INCLUDED' AND chain_id = $1`
+	args := []any{chainID}
+	if afterID != "" {
+		query += ` AND id > $2 ORDER BY id ASC LIMIT $3`
+		args = append(args, afterID, limit)
+	} else {
+		query += ` ORDER BY id ASC LIMIT $2`
+		args = append(args, limit)
+	}
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +425,8 @@ func (r *Repo) GetIncludedTransactions(ctx context.Context, chainID uint64) ([]*
 
 func (r *Repo) GetStuckTransactions(ctx context.Context, chainID uint64, _ big.Int) ([]*domain.Transaction, error) {
 	// Not used in the primary flow; the stuck detection is done via time check in the background worker.
-	return r.GetSubmittedTransactions(ctx, chainID)
+	// Fetch all submitted transactions (large limit, no cursor).
+	return r.GetSubmittedTransactions(ctx, chainID, 10000, "")
 }
 
 func (r *Repo) CountQueuedTransactions(ctx context.Context, sender string, chainID uint64) (int, error) {

@@ -21,6 +21,8 @@ type ChainConfig struct {
 	MinPriorityFee     *big.Int
 	MaxPriorityFee     *big.Int
 
+	ReceiptChunkSize int
+
 	StuckThreshold  time.Duration
 	GasBumpInterval time.Duration
 

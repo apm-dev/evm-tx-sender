@@ -119,6 +119,7 @@ func loadChainConfig(chainID uint64) (*domain.ChainConfig, error) {
 		ConfirmationBlocks:  envIntOrDefault(prefix+"CONFIRMATION_BLOCKS", 12),
 		SupportsEIP1559:     true,
 		GasLimitMultiplier:  envFloatOrDefault(prefix+"GAS_LIMIT_MULTIPLIER", 1.2),
+		ReceiptChunkSize:    envIntOrDefault(prefix+"RECEIPT_CHUNK_SIZE", 50),
 		StuckThreshold:      envDurationOrDefault(prefix+"STUCK_THRESHOLD", 180*time.Second),
 		GasBumpInterval:     envDurationOrDefault(prefix+"GAS_BUMP_INTERVAL", 30*time.Second),
 		NativeTokenSymbol:   envOrDefault(prefix+"NATIVE_SYMBOL", "ETH"),
