@@ -33,7 +33,7 @@ func submittedTx(id, txHash string) *domain.Transaction {
 	return &domain.Transaction{
 		ID:          id,
 		ChainID:     1,
-		Sender:      pipelineSender.Hex(),
+		Sender:      pipelineSenderHex,
 		ToAddress:   pipelineTo,
 		Value:       big.NewInt(1_000_000_000_000_000_000),
 		Status:      domain.TxStatusSubmitted,

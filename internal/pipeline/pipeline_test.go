@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,12 +49,15 @@ func newTestPipeline(ctrl *gomock.Controller) (*Pipeline, *mocks.MockRepository,
 	return p, repo, client, signer
 }
 
+// pipelineSenderHex is the canonical lower-case hex representation used in DB and map keys.
+var pipelineSenderHex = strings.ToLower(pipelineSender.Hex())
+
 func testTransaction() *domain.Transaction {
 	return &domain.Transaction{
 		ID:                "tx-001",
 		IdempotencyKey:    "idem-1",
 		ChainID:           1,
-		Sender:            pipelineSender.Hex(),
+		Sender:            pipelineSenderHex,
 		ToAddress:         pipelineTo,
 		Value:             big.NewInt(1_000_000_000_000_000_000), // 1 ETH
 		Priority:          domain.PriorityNormal,
@@ -71,13 +75,13 @@ func TestPipeline_ProcessTx_HappyPath(t *testing.T) {
 	p, repo, client, signer := newTestPipeline(ctrl)
 	ctx := context.Background()
 	tx := testTransaction()
-	actor := pipelineSender.Hex() + "-1"
+	actor := pipelineSenderHex + "-1"
 
 	// State transition log QUEUED->PENDING
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 	// Nonce assignment
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(5), nil)
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	// Gas estimation
@@ -117,7 +121,7 @@ func TestPipeline_ProcessTx_NonceAssignmentFails(t *testing.T) {
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	// Nonce assignment fails
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(0), fmt.Errorf("db error"))
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(0), fmt.Errorf("db error"))
 
 	// Should fail the transaction
 	repo.EXPECT().MarkFailed(gomock.Any(), "tx-001", domain.ErrCodeInternalError, gomock.Any()).Return(nil)
@@ -133,7 +137,7 @@ func TestPipeline_ProcessTx_GasEstimationFails(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(5), nil)
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	// Gas estimation fails
@@ -153,7 +157,7 @@ func TestPipeline_ProcessTx_SigningFails(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(5), nil)
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
@@ -181,7 +185,7 @@ func TestPipeline_ProcessTx_BroadcastFailsAllRetries(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(5), nil)
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
@@ -215,7 +219,7 @@ func TestPipeline_ProcessTx_BroadcastSucceedsOnRetry(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(5), nil)
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(5), nil)
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(5)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)
@@ -296,7 +300,7 @@ func TestPipeline_ProcessTx_CorrectNonceInTransaction(t *testing.T) {
 	actor := "test-actor"
 
 	repo.EXPECT().LogStateTransition(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSender.Hex(), uint64(1)).Return(uint64(42), nil)
+	repo.EXPECT().IncrementNonceCursor(gomock.Any(), pipelineSenderHex, uint64(1)).Return(uint64(42), nil)
 	repo.EXPECT().MarkPending(gomock.Any(), "tx-001", uint64(42)).Return(nil)
 
 	toAddr := common.HexToAddress(pipelineTo)

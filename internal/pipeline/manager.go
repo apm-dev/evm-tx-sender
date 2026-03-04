@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/apm-dev/evm-tx-sender/internal/domain"
@@ -63,7 +64,7 @@ func (m *Manager) InitNonces(ctx context.Context) error {
 }
 
 func (m *Manager) initNonceForSender(ctx context.Context, addr common.Address, chainID uint64, client domain.EthClient) error {
-	senderHex := addr.Hex()
+	senderHex := strings.ToLower(addr.Hex())
 
 	// Get on-chain pending nonce
 	pendingNonce, err := client.PendingNonceAt(ctx, addr)
@@ -118,7 +119,7 @@ func (m *Manager) Start(ctx context.Context) {
 			continue
 		}
 		for _, addr := range m.signer.Addresses() {
-			key := fmt.Sprintf("%s-%d", addr.Hex(), chainID)
+			key := fmt.Sprintf("%s-%d", strings.ToLower(addr.Hex()), chainID)
 			p := NewPipeline(addr, chain, m.repo, client, m.signer, m.gas, m.log)
 			m.pipelines[key] = p
 			go p.Run(ctx)
@@ -147,7 +148,7 @@ func (m *Manager) Start(ctx context.Context) {
 
 // NotifyPipeline wakes the pipeline for a (sender, chain) pair.
 func (m *Manager) NotifyPipeline(sender string, chainID uint64) {
-	key := fmt.Sprintf("%s-%d", sender, chainID)
+	key := fmt.Sprintf("%s-%d", strings.ToLower(sender), chainID)
 	if p, ok := m.pipelines[key]; ok {
 		p.Notify()
 	}
@@ -157,7 +158,7 @@ func (m *Manager) NotifyPipeline(sender string, chainID uint64) {
 func (m *Manager) PipelineStatus(ctx context.Context) map[string]PipelineInfo {
 	result := make(map[string]PipelineInfo)
 	for key, p := range m.pipelines {
-		count, _ := m.repo.CountQueuedTransactions(ctx, p.sender.Hex(), p.chainID)
+		count, _ := m.repo.CountQueuedTransactions(ctx, strings.ToLower(p.sender.Hex()), p.chainID)
 		result[key] = PipelineInfo{
 			Status:     "running",
 			QueueDepth: count,

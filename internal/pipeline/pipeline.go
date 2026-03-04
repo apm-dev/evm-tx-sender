@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/apm-dev/evm-tx-sender/internal/domain"
@@ -52,10 +53,16 @@ func NewPipeline(
 		notify:  make(chan struct{}, 1),
 		log: log.With(
 			"component", "pipeline",
-			"sender", sender.Hex(),
+			"sender", strings.ToLower(sender.Hex()),
 			"chain_id", chain.ChainID,
 		),
 	}
+}
+
+// senderHex returns the lower-case hex representation of the sender address.
+// All DB queries and map keys must use this to ensure consistent casing.
+func (p *Pipeline) senderHex() string {
+	return strings.ToLower(p.sender.Hex())
 }
 
 func (p *Pipeline) Notify() {
@@ -66,7 +73,7 @@ func (p *Pipeline) Notify() {
 }
 
 func (p *Pipeline) Run(ctx context.Context) {
-	pipelineID := fmt.Sprintf("%s-%d", p.sender.Hex(), p.chainID)
+	pipelineID := fmt.Sprintf("%s-%d", p.senderHex(), p.chainID)
 	p.log.Info("pipeline started")
 	defer p.log.Info("pipeline stopped")
 
@@ -77,7 +84,7 @@ func (p *Pipeline) Run(ctx context.Context) {
 		default:
 		}
 
-		tx, err := p.repo.ClaimNextQueued(ctx, p.sender.Hex(), p.chainID, pipelineID)
+		tx, err := p.repo.ClaimNextQueued(ctx, p.senderHex(), p.chainID, pipelineID)
 		if err != nil {
 			p.log.Error("failed to claim queued tx", "error", err)
 			sleepCtx(ctx, 5*time.Second)
@@ -105,7 +112,7 @@ func (p *Pipeline) processTx(ctx context.Context, tx *domain.Transaction, actor 
 	p.logTransition(ctx, tx.ID, string(domain.TxStatusQueued), string(domain.TxStatusPending), actor, "claimed by pipeline")
 
 	// 1. Assign nonce
-	nonce, err := p.repo.IncrementNonceCursor(ctx, p.sender.Hex(), p.chainID)
+	nonce, err := p.repo.IncrementNonceCursor(ctx, p.senderHex(), p.chainID)
 	if err != nil {
 		log.Error("nonce assignment failed", "error", err)
 		p.failTx(ctx, tx, domain.ErrCodeInternalError, "nonce assignment: "+err.Error(), actor)

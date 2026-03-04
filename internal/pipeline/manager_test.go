@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+// addrHex returns the canonical lower-case hex representation of an address,
+// matching the normalization used by the production pipeline code.
+func addrHex(addr common.Address) string {
+	return strings.ToLower(addr.Hex())
+}
 
 func newTestManager(ctrl *gomock.Controller) (*Manager, *mocks.MockRepository, *mocks.MockEthClient, *mocks.MockSigner) {
 	repo := mocks.NewMockRepository(ctrl)
@@ -48,8 +55,8 @@ func TestManager_InitNonces_ResetsPendingToQueued(t *testing.T) {
 	client.EXPECT().PendingNonceAt(gomock.Any(), addr).Return(uint64(10), nil)
 
 	// DB cursor doesn't exist yet
-	repo.EXPECT().GetNonceCursor(gomock.Any(), addr.Hex(), uint64(1)).Return(nil, nil)
-	repo.EXPECT().InitNonceCursor(gomock.Any(), addr.Hex(), uint64(1), uint64(10)).Return(nil)
+	repo.EXPECT().GetNonceCursor(gomock.Any(), addrHex(addr), uint64(1)).Return(nil, nil)
+	repo.EXPECT().InitNonceCursor(gomock.Any(), addrHex(addr), uint64(1), uint64(10)).Return(nil)
 
 	err := m.InitNonces(ctx)
 	require.NoError(t, err)
@@ -69,15 +76,15 @@ func TestManager_InitNonces_DBAheadOfOnChain_AlignsToOnChain(t *testing.T) {
 	client.EXPECT().PendingNonceAt(gomock.Any(), addr).Return(uint64(10), nil)
 
 	// DB cursor is ahead at 15 (txs were assigned but never broadcast before crash)
-	repo.EXPECT().GetNonceCursor(gomock.Any(), addr.Hex(), uint64(1)).Return(&domain.NonceCursor{
-		Sender:    addr.Hex(),
+	repo.EXPECT().GetNonceCursor(gomock.Any(), addrHex(addr), uint64(1)).Return(&domain.NonceCursor{
+		Sender:    addrHex(addr),
 		ChainID:   1,
 		NextNonce: 15,
 		UpdatedAt: time.Now(),
 	}, nil)
 
 	// Should align to on-chain (10), not keep DB value (15)
-	repo.EXPECT().SetNonceCursor(gomock.Any(), addr.Hex(), uint64(1), uint64(10)).Return(nil)
+	repo.EXPECT().SetNonceCursor(gomock.Any(), addrHex(addr), uint64(1), uint64(10)).Return(nil)
 
 	err := m.InitNonces(ctx)
 	require.NoError(t, err)
@@ -97,15 +104,15 @@ func TestManager_InitNonces_DBBehindOnChain_UsesOnChain(t *testing.T) {
 	client.EXPECT().PendingNonceAt(gomock.Any(), addr).Return(uint64(20), nil)
 
 	// DB cursor is behind at 15
-	repo.EXPECT().GetNonceCursor(gomock.Any(), addr.Hex(), uint64(1)).Return(&domain.NonceCursor{
-		Sender:    addr.Hex(),
+	repo.EXPECT().GetNonceCursor(gomock.Any(), addrHex(addr), uint64(1)).Return(&domain.NonceCursor{
+		Sender:    addrHex(addr),
 		ChainID:   1,
 		NextNonce: 15,
 		UpdatedAt: time.Now(),
 	}, nil)
 
 	// Should use on-chain (20)
-	repo.EXPECT().SetNonceCursor(gomock.Any(), addr.Hex(), uint64(1), uint64(20)).Return(nil)
+	repo.EXPECT().SetNonceCursor(gomock.Any(), addrHex(addr), uint64(1), uint64(20)).Return(nil)
 
 	err := m.InitNonces(ctx)
 	require.NoError(t, err)
@@ -124,8 +131,8 @@ func TestManager_InitNonces_FreshCursorInit(t *testing.T) {
 	client.EXPECT().PendingNonceAt(gomock.Any(), addr).Return(uint64(0), nil)
 
 	// No cursor exists
-	repo.EXPECT().GetNonceCursor(gomock.Any(), addr.Hex(), uint64(1)).Return(nil, nil)
-	repo.EXPECT().InitNonceCursor(gomock.Any(), addr.Hex(), uint64(1), uint64(0)).Return(nil)
+	repo.EXPECT().GetNonceCursor(gomock.Any(), addrHex(addr), uint64(1)).Return(nil, nil)
+	repo.EXPECT().InitNonceCursor(gomock.Any(), addrHex(addr), uint64(1), uint64(0)).Return(nil)
 
 	err := m.InitNonces(ctx)
 	require.NoError(t, err)
@@ -190,11 +197,11 @@ func TestManager_InitNonces_MultipleSendersMultipleChains(t *testing.T) {
 		client1.EXPECT().PendingNonceAt(gomock.Any(), addr).Return(uint64(5), nil)
 		client2.EXPECT().PendingNonceAt(gomock.Any(), addr).Return(uint64(10), nil)
 
-		repo.EXPECT().GetNonceCursor(gomock.Any(), addr.Hex(), uint64(1)).Return(nil, nil)
-		repo.EXPECT().GetNonceCursor(gomock.Any(), addr.Hex(), uint64(137)).Return(nil, nil)
+		repo.EXPECT().GetNonceCursor(gomock.Any(), addrHex(addr), uint64(1)).Return(nil, nil)
+		repo.EXPECT().GetNonceCursor(gomock.Any(), addrHex(addr), uint64(137)).Return(nil, nil)
 
-		repo.EXPECT().InitNonceCursor(gomock.Any(), addr.Hex(), uint64(1), uint64(5)).Return(nil)
-		repo.EXPECT().InitNonceCursor(gomock.Any(), addr.Hex(), uint64(137), uint64(10)).Return(nil)
+		repo.EXPECT().InitNonceCursor(gomock.Any(), addrHex(addr), uint64(1), uint64(5)).Return(nil)
+		repo.EXPECT().InitNonceCursor(gomock.Any(), addrHex(addr), uint64(137), uint64(10)).Return(nil)
 	}
 
 	err := m.InitNonces(context.Background())
@@ -206,14 +213,14 @@ func TestManager_NotifyPipeline_ExistingPipeline(t *testing.T) {
 	m, _, _, _ := newTestManager(ctrl)
 
 	addr := common.HexToAddress("0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B")
-	key := fmt.Sprintf("%s-%d", addr.Hex(), 1)
+	key := fmt.Sprintf("%s-%d", addrHex(addr), 1)
 
 	// Manually add a pipeline to the manager
 	p := &Pipeline{notify: make(chan struct{}, 1)}
 	m.pipelines[key] = p
 
 	// NotifyPipeline should not panic even with unknown keys
-	m.NotifyPipeline(addr.Hex(), 1)
+	m.NotifyPipeline(addrHex(addr), 1)
 
 	select {
 	case <-p.notify:
@@ -236,7 +243,7 @@ func TestManager_PipelineStatus(t *testing.T) {
 	m, repo, _, _ := newTestManager(ctrl)
 
 	addr := common.HexToAddress("0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B")
-	key := fmt.Sprintf("%s-%d", addr.Hex(), 1)
+	key := fmt.Sprintf("%s-%d", addrHex(addr), 1)
 
 	p := &Pipeline{
 		sender:  addr,
@@ -245,7 +252,7 @@ func TestManager_PipelineStatus(t *testing.T) {
 	}
 	m.pipelines[key] = p
 
-	repo.EXPECT().CountQueuedTransactions(gomock.Any(), addr.Hex(), uint64(1)).Return(5, nil)
+	repo.EXPECT().CountQueuedTransactions(gomock.Any(), addrHex(addr), uint64(1)).Return(5, nil)
 
 	status := m.PipelineStatus(context.Background())
 	assert.Len(t, status, 1)
