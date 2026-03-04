@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/apm-dev/evm-tx-sender/internal/domain"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -36,26 +38,82 @@ type DatabaseConfig struct {
 	MaxConnLifetime time.Duration
 }
 
+// --- viper helpers -----------------------------------------------------------
+
+func viperGetOrDefault(key, defaultValue string) string {
+	viper.SetDefault(key, defaultValue)
+	return viper.GetString(key)
+}
+
+func viperGetOrDefaultInt(key string, defaultValue int) int {
+	viper.SetDefault(key, defaultValue)
+	return viper.GetInt(key)
+}
+
+func viperGetOrDefaultFloat(key string, defaultValue float64) float64 {
+	viper.SetDefault(key, defaultValue)
+	return viper.GetFloat64(key)
+}
+
+func viperGetOrDefaultDuration(key string, defaultValue time.Duration) time.Duration {
+	viper.SetDefault(key, defaultValue.String())
+	s := viper.GetString(key)
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return defaultValue
+	}
+	return d
+}
+
+// --- parse() methods ---------------------------------------------------------
+
+func (c *ServerConfig) parse() {
+	c.Host = viperGetOrDefault("server.host", "0.0.0.0")
+	c.Port = viperGetOrDefaultInt("server.port", 8080)
+	c.ReadTimeout = viperGetOrDefaultDuration("server.read-timeout", 10*time.Second)
+	c.WriteTimeout = viperGetOrDefaultDuration("server.write-timeout", 30*time.Second)
+	c.ShutdownTimeout = viperGetOrDefaultDuration("server.shutdown-timeout", 60*time.Second)
+}
+
+func (c *DatabaseConfig) parse() {
+	c.URL = viperGetOrDefault("database.url", "")
+	c.MaxConns = int32(viperGetOrDefaultInt("database.max-conns", 25))
+	c.MinConns = int32(viperGetOrDefaultInt("database.min-conns", 5))
+	c.MaxConnLifetime = viperGetOrDefaultDuration("database.max-conn-lifetime", 1*time.Hour)
+}
+
+// --- Load --------------------------------------------------------------------
+
+// Load reads configuration from an optional config file, environment variables,
+// and built-in defaults. Environment variables take precedence over file values.
+// The config file path defaults to ./config.yml and can be overridden with the
+// CONFIG_PATH env var.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Server: ServerConfig{
-			Host:            envOrDefault("TX_SENDER_HOST", "0.0.0.0"),
-			Port:            envIntOrDefault("TX_SENDER_PORT", 8080),
-			ReadTimeout:     envDurationOrDefault("TX_SENDER_READ_TIMEOUT", 10*time.Second),
-			WriteTimeout:    envDurationOrDefault("TX_SENDER_WRITE_TIMEOUT", 30*time.Second),
-			ShutdownTimeout: envDurationOrDefault("TX_SENDER_SHUTDOWN_TIMEOUT", 60*time.Second),
-		},
-		Database: DatabaseConfig{
-			URL:             os.Getenv("TX_SENDER_DATABASE_URL"),
-			MaxConns:        int32(envIntOrDefault("TX_SENDER_DB_MAX_CONNS", 25)),
-			MinConns:        int32(envIntOrDefault("TX_SENDER_DB_MIN_CONNS", 5)),
-			MaxConnLifetime: envDurationOrDefault("TX_SENDER_DB_MAX_CONN_LIFETIME", time.Hour),
-		},
 		Chains: make(map[uint64]*domain.ChainConfig),
 	}
 
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+
+	viper.SetDefault("config-path", "./config.yml")
+	configPath := viper.GetString("config-path")
+	if _, err := os.Stat(configPath); err == nil {
+		ext := filepath.Ext(configPath)
+		if len(ext) > 1 {
+			viper.SetConfigType(ext[1:])
+		}
+		viper.SetConfigFile(configPath)
+		if err := viper.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("reading config file: %w", err)
+		}
+	}
+
+	cfg.Server.parse()
+	cfg.Database.parse()
+
 	if cfg.Database.URL == "" {
-		return nil, fmt.Errorf("TX_SENDER_DATABASE_URL is required")
+		return nil, fmt.Errorf("database.url is required")
 	}
 
 	if err := cfg.loadChains(); err != nil {
@@ -78,23 +136,16 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// --- chain loading -----------------------------------------------------------
+
 func (c *Config) loadChains() error {
-	// Discover chains from TX_SENDER_CHAIN_<ID>_RPC_URLS
-	for _, env := range os.Environ() {
-		parts := strings.SplitN(env, "=", 2)
-		key := parts[0]
-		if !strings.HasPrefix(key, "TX_SENDER_CHAIN_") || !strings.HasSuffix(key, "_RPC_URLS") {
-			continue
-		}
-
-		chainStr := strings.TrimPrefix(key, "TX_SENDER_CHAIN_")
-		chainStr = strings.TrimSuffix(chainStr, "_RPC_URLS")
-		chainID, err := strconv.ParseUint(chainStr, 10, 64)
+	chainMap := viper.GetStringMap("chains")
+	for idStr := range chainMap {
+		chainID, err := strconv.ParseUint(idStr, 10, 64)
 		if err != nil {
-			continue
+			return fmt.Errorf("invalid chain ID %q in config: %w", idStr, err)
 		}
-
-		chain, err := loadChainConfig(chainID)
+		chain, err := parseChain(chainID)
 		if err != nil {
 			return fmt.Errorf("chain %d: %w", chainID, err)
 		}
@@ -103,107 +154,95 @@ func (c *Config) loadChains() error {
 	return nil
 }
 
-func loadChainConfig(chainID uint64) (*domain.ChainConfig, error) {
-	prefix := fmt.Sprintf("TX_SENDER_CHAIN_%d_", chainID)
-
-	rpcURLs := os.Getenv(prefix + "RPC_URLS")
-	if rpcURLs == "" {
-		return nil, fmt.Errorf("RPC_URLS required")
-	}
+func parseChain(chainID uint64) (*domain.ChainConfig, error) {
+	p := fmt.Sprintf("chains.%d", chainID)
 
 	chain := &domain.ChainConfig{
 		ChainID:             chainID,
-		Name:                envOrDefault(prefix+"NAME", fmt.Sprintf("chain-%d", chainID)),
-		RPCEndpoints:        splitCSV(rpcURLs),
-		BlockTime:           envDurationOrDefault(prefix+"BLOCK_TIME", 12*time.Second),
-		ConfirmationBlocks:  envIntOrDefault(prefix+"CONFIRMATION_BLOCKS", 12),
 		SupportsEIP1559:     true,
-		GasLimitMultiplier:  envFloatOrDefault(prefix+"GAS_LIMIT_MULTIPLIER", 1.2),
-		ReceiptChunkSize:    envIntOrDefault(prefix+"RECEIPT_CHUNK_SIZE", 50),
-		StuckThreshold:      envDurationOrDefault(prefix+"STUCK_THRESHOLD", 180*time.Second),
-		GasBumpInterval:     envDurationOrDefault(prefix+"GAS_BUMP_INTERVAL", 30*time.Second),
-		NativeTokenSymbol:   envOrDefault(prefix+"NATIVE_SYMBOL", "ETH"),
-		NativeTokenDecimals: uint8(envIntOrDefault(prefix+"NATIVE_DECIMALS", 18)),
 		TokenWhitelist:      make(map[string]domain.TokenConfig),
+		Name:                viperGetOrDefault(p+".name", fmt.Sprintf("chain-%d", chainID)),
+		BlockTime:           viperGetOrDefaultDuration(p+".block-time", 12*time.Second),
+		ConfirmationBlocks:  viperGetOrDefaultInt(p+".confirmation-blocks", 12),
+		GasLimitMultiplier:  viperGetOrDefaultFloat(p+".gas-limit-multiplier", 1.2),
+		ReceiptChunkSize:    viperGetOrDefaultInt(p+".receipt-chunk-size", 50),
+		StuckThreshold:      viperGetOrDefaultDuration(p+".stuck-threshold", 180*time.Second),
+		GasBumpInterval:     viperGetOrDefaultDuration(p+".gas-bump-interval", 30*time.Second),
+		NativeTokenSymbol:   viperGetOrDefault(p+".native-symbol", "ETH"),
+		NativeTokenDecimals: uint8(viperGetOrDefaultInt(p+".native-decimals", 18)),
 	}
 
-	// Min/max gas bounds
-	if v := os.Getenv(prefix + "MIN_MAX_FEE"); v != "" {
-		chain.MinMaxFee, _ = new(big.Int).SetString(v, 10)
+	rpcURLs := viper.GetStringSlice(p + ".rpc-urls")
+	if len(rpcURLs) == 0 {
+		return nil, fmt.Errorf("rpc-urls required")
 	}
-	if v := os.Getenv(prefix + "MAX_MAX_FEE"); v != "" {
-		chain.MaxMaxFee, _ = new(big.Int).SetString(v, 10)
-	}
-	if v := os.Getenv(prefix + "MIN_PRIORITY_FEE"); v != "" {
-		chain.MinPriorityFee, _ = new(big.Int).SetString(v, 10)
-	}
-	if v := os.Getenv(prefix + "MAX_PRIORITY_FEE"); v != "" {
-		chain.MaxPriorityFee, _ = new(big.Int).SetString(v, 10)
-	}
-	if v := os.Getenv(prefix + "NATIVE_MAX_TRANSFER"); v != "" {
-		chain.NativeMaxTransfer, _ = new(big.Int).SetString(v, 10)
-	}
+	chain.RPCEndpoints = rpcURLs
 
-	// Load token whitelist: TX_SENDER_CHAIN_<ID>_TOKEN_<SYMBOL>_ADDRESS
-	if err := loadTokenWhitelist(chain, prefix); err != nil {
-		return chain, err
+	chain.MinMaxFee = bigIntFromViper(p + ".min-max-fee")
+	chain.MaxMaxFee = bigIntFromViper(p + ".max-max-fee")
+	chain.MinPriorityFee = bigIntFromViper(p + ".min-priority-fee")
+	chain.MaxPriorityFee = bigIntFromViper(p + ".max-priority-fee")
+	chain.NativeMaxTransfer = bigIntFromViper(p + ".native-max-transfer")
+
+	if err := parseTokens(chain, p+".tokens"); err != nil {
+		return nil, err
 	}
 
 	return chain, nil
 }
 
-func loadTokenWhitelist(chain *domain.ChainConfig, prefix string) error {
-	// Scan for TX_SENDER_CHAIN_<ID>_TOKEN_<SYMBOL>_ADDRESS
-	tokenPrefix := prefix + "TOKEN_"
-	seen := make(map[string]bool)
-
-	for _, env := range os.Environ() {
-		parts := strings.SplitN(env, "=", 2)
-		key := parts[0]
-		if !strings.HasPrefix(key, tokenPrefix) || !strings.HasSuffix(key, "_ADDRESS") {
-			continue
-		}
-
-		// Extract symbol
-		rest := strings.TrimPrefix(key, tokenPrefix)
-		symbol := strings.TrimSuffix(rest, "_ADDRESS")
+func parseTokens(chain *domain.ChainConfig, prefix string) error {
+	tokenMap := viper.GetStringMap(prefix)
+	for symbol := range tokenMap {
 		symbol = strings.ToUpper(symbol)
+		tp := fmt.Sprintf("%s.%s", prefix, strings.ToLower(symbol))
 
-		if seen[symbol] {
-			continue
-		}
-		seen[symbol] = true
-
-		symPrefix := tokenPrefix + symbol + "_"
-		addrStr := os.Getenv(symPrefix + "ADDRESS")
-		if addrStr == "" || !common.IsHexAddress(addrStr) {
-			return fmt.Errorf("token %s: invalid address %q", symbol, addrStr)
-		}
-
-		decimals := envIntOrDefault(symPrefix+"DECIMALS", 18)
-		enabled := envOrDefault(symPrefix+"ENABLED", "true") == "true"
-
-		tc := domain.TokenConfig{
-			Symbol:          symbol,
-			ContractAddress: common.HexToAddress(addrStr),
-			Decimals:        uint8(decimals),
-			Enabled:         enabled,
-		}
-
-		if v := os.Getenv(symPrefix + "MAX_TRANSFER"); v != "" {
-			tc.MaxTransfer, _ = new(big.Int).SetString(v, 10)
-		}
-
-		// Validate: symbol must not collide with native token
 		if symbol == strings.ToUpper(chain.NativeTokenSymbol) {
 			return fmt.Errorf("token %s: symbol conflicts with native token", symbol)
 		}
 
+		addrStr := viper.GetString(tp + ".address")
+		if addrStr == "" || !common.IsHexAddress(addrStr) {
+			return fmt.Errorf("token %s: invalid address %q", symbol, addrStr)
+		}
+
+		tc := domain.TokenConfig{
+			Symbol:          symbol,
+			ContractAddress: common.HexToAddress(addrStr),
+			Decimals:        uint8(viperGetOrDefaultInt(tp+".decimals", 18)),
+			Enabled:         viperGetOrDefaultBool(tp+".enabled", true),
+			MaxTransfer:     bigIntFromViper(tp + ".max-transfer"),
+		}
 		chain.TokenWhitelist[symbol] = tc
 	}
 	return nil
 }
 
+// --- big.Int helper ----------------------------------------------------------
+
+func bigIntFromViper(key string) *big.Int {
+	s := viper.GetString(key)
+	if s == "" {
+		return nil
+	}
+	n, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		return nil
+	}
+	return n
+}
+
+// viperGetOrDefaultBool is used only internally; not part of the public helper set.
+func viperGetOrDefaultBool(key string, defaultValue bool) bool {
+	viper.SetDefault(key, defaultValue)
+	return viper.GetBool(key)
+}
+
+// --- private key loading -----------------------------------------------------
+
+// loadKeys reads TX_SENDER_KEYS_<ADDRESS>=<hex-private-key> env vars.
+// Keys are env-var-only and never loaded from the config file.
+// Each env var is cleared from the process environment after loading.
 func loadKeys() (map[common.Address]*ecdsa.PrivateKey, error) {
 	keys := make(map[common.Address]*ecdsa.PrivateKey)
 
@@ -219,15 +258,14 @@ func loadKeys() (map[common.Address]*ecdsa.PrivateKey, error) {
 			return nil, fmt.Errorf("invalid address in key env var: %s", addrStr)
 		}
 
-		hexKey := parts[1]
-		hexKey = strings.TrimPrefix(hexKey, "0x")
+		hexKey := strings.TrimPrefix(parts[1], "0x")
 
 		privateKey, err := crypto.HexToECDSA(hexKey)
 		if err != nil {
 			return nil, fmt.Errorf("invalid private key for %s: %w", addrStr, err)
 		}
 
-		// Derive address and verify it matches the env var name
+		// Derive address and verify it matches the env var name.
 		derived := crypto.PubkeyToAddress(privateKey.PublicKey)
 		expected := common.HexToAddress(addrStr)
 		if derived != expected {
@@ -235,58 +273,8 @@ func loadKeys() (map[common.Address]*ecdsa.PrivateKey, error) {
 		}
 
 		keys[derived] = privateKey
-
-		// Clear the env var after loading
 		os.Unsetenv(key)
 	}
 
 	return keys, nil
-}
-
-// Helpers
-
-func envOrDefault(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envIntOrDefault(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			return i
-		}
-	}
-	return def
-}
-
-func envDurationOrDefault(key string, def time.Duration) time.Duration {
-	if v := os.Getenv(key); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			return d
-		}
-	}
-	return def
-}
-
-func envFloatOrDefault(key string, def float64) float64 {
-	if v := os.Getenv(key); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return f
-		}
-	}
-	return def
-}
-
-func splitCSV(s string) []string {
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }

@@ -1,0 +1,84 @@
+# tx-sender config. Copy to config.yml and fill in your values.
+# Env vars override YAML values. Key mapping: dots/hyphens become underscores.
+#   server.host → SERVER_HOST | chains.1.rpc-urls → CHAINS_1_RPC_URLS
+# Config path: ./config.yml (override with CONFIG_PATH env var)
+# Private keys: env-var only — TX_SENDER_KEYS_<0xADDRESS>=<hex-private-key>
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read-timeout: "10s"
+  write-timeout: "30s"
+  shutdown-timeout: "60s"
+
+database:
+  url: "postgres://user:pass@localhost:5432/txsender?sslmode=disable" # required
+  max-conns: 25
+  min-conns: 5
+  max-conn-lifetime: "1h"
+
+chains:
+  "1": # Ethereum Mainnet
+    name: "Ethereum"
+    rpc-urls:
+      - "https://mainnet.infura.io/v3/YOUR_KEY"
+      - "https://eth-mainnet.alchemyapi.io/v2/YOUR_KEY"
+    block-time: "12s"
+    confirmation-blocks: 12
+    gas-limit-multiplier: 1.2
+    receipt-chunk-size: 50
+    stuck-threshold: "3m"
+    gas-bump-interval: "30s"
+    native-symbol: "ETH"
+    native-decimals: 18
+    # native-max-transfer: "1000000000000000000" # 1 ETH, wei
+    # min-max-fee: "1000000000"                  # 1 gwei
+    # max-max-fee: "500000000000"                # 500 gwei
+    # min-priority-fee: "100000000"              # 0.1 gwei
+    # max-priority-fee: "5000000000"             # 5 gwei
+    tokens:
+      usdc:
+        address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        decimals: 6
+        enabled: true
+        # max-transfer: "1000000000" # 1000 USDC
+      usdt:
+        address: "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+        decimals: 6
+        enabled: true
+
+  "137": # Polygon
+    name: "Polygon"
+    rpc-urls:
+      - "https://polygon-rpc.com"
+    block-time: "2s"
+    confirmation-blocks: 30
+    gas-limit-multiplier: 1.3
+    receipt-chunk-size: 50
+    stuck-threshold: "1m"
+    gas-bump-interval: "15s"
+    native-symbol: "MATIC"
+    native-decimals: 18
+    tokens:
+      usdc:
+        address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        decimals: 6
+        enabled: true
+
+  "42161": # Arbitrum One
+    name: "Arbitrum"
+    rpc-urls:
+      - "https://arb1.arbitrum.io/rpc"
+    block-time: "250ms"
+    confirmation-blocks: 1
+    gas-limit-multiplier: 1.5
+    receipt-chunk-size: 50
+    stuck-threshold: "2m"
+    gas-bump-interval: "20s"
+    native-symbol: "ETH"
+    native-decimals: 18
+    tokens:
+      usdc:
+        address: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+        decimals: 6
+        enabled: true
