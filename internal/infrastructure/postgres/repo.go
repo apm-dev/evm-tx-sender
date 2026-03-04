@@ -423,10 +423,24 @@ func (r *Repo) GetIncludedTransactions(ctx context.Context, chainID uint64, limi
 	return txs, rows.Err()
 }
 
-func (r *Repo) GetStuckTransactions(ctx context.Context, chainID uint64, _ big.Int) ([]*domain.Transaction, error) {
-	// Not used in the primary flow; the stuck detection is done via time check in the background worker.
-	// Fetch all submitted transactions (large limit, no cursor).
-	return r.GetSubmittedTransactions(ctx, chainID, 10000, "")
+func (r *Repo) GetStuckTransactions(ctx context.Context, chainID uint64, submittedBefore time.Time) ([]*domain.Transaction, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+txColumns+` FROM transactions WHERE status = 'SUBMITTED' AND chain_id = $1 AND submitted_at IS NOT NULL AND submitted_at < $2 ORDER BY id ASC`,
+		chainID, submittedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var txs []*domain.Transaction
+	for rows.Next() {
+		tx, err := scanTransactionRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, rows.Err()
 }
 
 func (r *Repo) CountQueuedTransactions(ctx context.Context, sender string, chainID uint64) (int, error) {

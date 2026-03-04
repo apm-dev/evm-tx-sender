@@ -73,22 +73,14 @@ func (sd *StuckDetector) Run(ctx context.Context) {
 }
 
 func (sd *StuckDetector) check(ctx context.Context) {
-	txs, err := sd.repo.GetSubmittedTransactions(ctx, sd.chainID, 10000, "")
+	cutoff := time.Now().UTC().Add(-sd.stuckThreshold)
+	txs, err := sd.repo.GetStuckTransactions(ctx, sd.chainID, cutoff)
 	if err != nil {
-		sd.log.Error("failed to get submitted txs", "error", err)
+		sd.log.Error("failed to get stuck txs", "error", err)
 		return
 	}
 
-	now := time.Now().UTC()
 	for _, tx := range txs {
-		if tx.SubmittedAt == nil {
-			continue
-		}
-		age := now.Sub(*tx.SubmittedAt)
-		if age < sd.stuckThreshold {
-			continue
-		}
-
 		// Check if already at max bumps
 		attempts, err := sd.repo.GetAttemptsByTransactionID(ctx, tx.ID)
 		if err != nil {

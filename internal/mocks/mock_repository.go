@@ -13,6 +13,7 @@ import (
 	context "context"
 	big "math/big"
 	reflect "reflect"
+	time "time"
 
 	domain "github.com/apm-dev/evm-tx-sender/internal/domain"
 	gomock "go.uber.org/mock/gomock"
@@ -161,18 +162,18 @@ func (mr *MockRepositoryMockRecorder) GetNonceCursor(ctx, sender, chainID any) *
 }
 
 // GetStuckTransactions mocks base method.
-func (m *MockRepository) GetStuckTransactions(ctx context.Context, chainID uint64, olderThan big.Int) ([]*domain.Transaction, error) {
+func (m *MockRepository) GetStuckTransactions(ctx context.Context, chainID uint64, submittedBefore time.Time) ([]*domain.Transaction, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStuckTransactions", ctx, chainID, olderThan)
+	ret := m.ctrl.Call(m, "GetStuckTransactions", ctx, chainID, submittedBefore)
 	ret0, _ := ret[0].([]*domain.Transaction)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetStuckTransactions indicates an expected call of GetStuckTransactions.
-func (mr *MockRepositoryMockRecorder) GetStuckTransactions(ctx, chainID, olderThan any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) GetStuckTransactions(ctx, chainID, submittedBefore any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStuckTransactions", reflect.TypeOf((*MockRepository)(nil).GetStuckTransactions), ctx, chainID, olderThan)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStuckTransactions", reflect.TypeOf((*MockRepository)(nil).GetStuckTransactions), ctx, chainID, submittedBefore)
 }
 
 // GetSubmittedTransactions mocks base method.

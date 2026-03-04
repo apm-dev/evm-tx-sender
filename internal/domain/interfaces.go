@@ -7,6 +7,7 @@ package domain
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -51,7 +52,7 @@ type Repository interface {
 	// Submitted tx queries for background workers
 	GetSubmittedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*Transaction, error)
 	GetIncludedTransactions(ctx context.Context, chainID uint64, limit int, afterID string) ([]*Transaction, error)
-	GetStuckTransactions(ctx context.Context, chainID uint64, olderThan big.Int) ([]*Transaction, error)
+	GetStuckTransactions(ctx context.Context, chainID uint64, submittedBefore time.Time) ([]*Transaction, error)
 	CountQueuedTransactions(ctx context.Context, sender string, chainID uint64) (int, error)
 }
 
